@@ -22,7 +22,7 @@ die()  { printf '\n%sInstall stopped:%s %s\n' "$red" "$off" "$1" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
 printf '%sCreatorize Suite installer (macOS)%s\n' "$bold" "$off"
-note "Installs Homebrew, git, ffmpeg, Python + packages, Claude Code and Creatorize Suite. Takes 5-20 minutes."
+note "Installs Homebrew, git, ffmpeg, Python + packages, Node.js, Claude Code and Creatorize Suite. Takes 5-20 minutes."
 
 [ "$(uname -s)" = "Darwin" ] || die "this installer is for macOS. On Windows, run this in PowerShell: $WIN_CMD"
 MACOS_MAJOR=$(sw_vers -productVersion | cut -d. -f1)
@@ -55,8 +55,8 @@ LINE="eval \"\$($BREW shellenv)\""
 grep -qsF "$LINE" "$PROFILE" || { printf '\n%s\n' "$LINE" >> "$PROFILE"; note "Added Homebrew to $PROFILE"; }
 
 # ---- git, ffmpeg, Python ----
-step "git, ffmpeg and Python"
-for f in git ffmpeg python@3.12; do
+step "git, ffmpeg, Python and Node.js"
+for f in git ffmpeg python@3.12 node; do
   if "$BREW" list --versions "$f" >/dev/null 2>&1; then ok "$f already installed"
   else note "Installing $f ..."; "$BREW" install --quiet "$f" || die "brew could not install $f."; ok "$f installed"; fi
 done

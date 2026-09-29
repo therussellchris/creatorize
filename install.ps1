@@ -41,7 +41,7 @@ function Install-Winget($id, $name) {
 
 try {
 Write-Host 'Creatorize Suite installer (Windows)' -ForegroundColor White
-Note 'Installs git, ffmpeg, Python + packages, Claude Code and Creatorize Suite. Takes 5-20 minutes.'
+Note 'Installs git, ffmpeg, Python + packages, Node.js, Claude Code and Creatorize Suite. Takes 5-20 minutes.'
 if ($DryRun) { Warn 'Test mode (CZ_INSTALL_DRY): nothing is installed or changed.' }
 
 if ($env:OS -ne 'Windows_NT') { Stop-Install "this installer is for Windows. On a Mac, run this in Terminal: $MacCmd" }
@@ -67,6 +67,10 @@ if (Find-Cmd 'ffmpeg') { Ok 'ffmpeg already installed' } else { Install-Winget '
 $py = Find-Cmd 'python'
 if ($py) { Ok "Python already installed ($py)" } else { Install-Winget 'Python.Python.3.12' 'Python 3.12'; $py = Find-Cmd 'python' }
 if (-not $py -and -not $DryRun) { Stop-Install 'Python was installed but is not found yet. Open a new PowerShell window and run the installer again.' }
+
+# ---- Node.js: HyperFrames (the intro editor) runs on it ----
+Step 'Node.js'
+if (Find-Cmd 'node') { Ok 'Node.js already installed' } else { Install-Winget 'OpenJS.NodeJS.LTS' 'Node.js'; Refresh-Path }
 
 # ---- Python packages ----
 Step 'Python packages for the audio pipeline'

@@ -35,6 +35,7 @@ Anything you already have is skipped.
 | git (edit history, so every change can be undone) | ✓ | ✓ |
 | ffmpeg (export with sound) | ✓ | ✓ |
 | Python 3 + numpy, scipy, pillow, stable-ts (audio pipeline) | ✓ | ✓ (in the app's own Python environment) |
+| Node.js (renders the animated intros Claude edits) | ✓ | ✓ |
 | Claude Code (the AI that edits your videos, using your Claude plan) | ✓ | ✓ |
 | Creatorize Suite | ✓ | ✓ |
 
