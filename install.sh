@@ -5,6 +5,11 @@
 # anything missing. Source: installer/install.sh in the Creatorize Suite code repo (published by scripts/publish-installer.mjs).
 set -euo pipefail
 
+# Everything runs inside main(), called on the last line: with `curl ... | bash` the script arrives on the same stdin the
+# commands inside it can read (Homebrew installing Python swallowed part of it once, and the install silently stopped
+# after Node.js). Inside a function bash has read the whole script before anything runs.
+main() {
+
 OWNER="therussellchris"
 MAC_REPO="creatorize-suite-mac-releases"
 APP="/Applications/Creatorize Suite.app"
@@ -128,5 +133,8 @@ fi
 
 step "Done"
 note "Your projects will live in ~/Documents/Creatorize Suite."
-if [ -z "${CZ_NO_OPEN:-}" ] && [ -d "$APP" ] && ! pgrep -xq "Creatorize Suite"; then open "$APP"; ok "Opening Creatorize Suite: sign in with Claude on the Home page."; fi
+if [ -z "${CZ_NO_OPEN:-}" ] && [ -d "$APP" ] && ! pgrep -xq "Creatorize Suite"; then open "$APP"; ok "Opening Creatorize Suite: log in with your Skool account, then sign in with Claude on the Home page."; fi
 printf '\n%sAll set.%s Run the same command again any time to update or repair.\n' "$bold" "$off"
+}
+
+main "$@"

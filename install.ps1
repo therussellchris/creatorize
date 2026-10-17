@@ -120,12 +120,16 @@ if ($current -and [version]$current -ge [version]($latest -replace '-.*$', '')) 
 elseif ($running) { Warn "Creatorize Suite $current is open, so it was not updated to $latest. It updates itself when you close it, or close it and run the installer again." }
 elseif ($DryRun) { Note "(test mode) would install Creatorize Suite $latest$(if ($current) { " (installed: $current)" })" }
 else {
-  $setup = Join-Path $env:TEMP $asset.name
+  # a fresh folder of its own each time (not a fixed name in Temp): an antivirus that blocked or locked an earlier copy
+  # can't make this download fail with 'access denied', and an .exe run from Temp is what antiviruses distrust most
+  $dl = Join-Path $env:LOCALAPPDATA ('Creatorize Setup\' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+  New-Item -ItemType Directory -Force -Path $dl | Out-Null
+  $setup = Join-Path $dl $asset.name
   Note "Downloading Creatorize Suite $latest ..."
   Invoke-WebRequest $asset.browser_download_url -OutFile $setup -UseBasicParsing
   Note 'Installing ...'
   $p = Start-Process $setup -ArgumentList '/S' -Wait -PassThru
-  Remove-Item $setup -Force -ErrorAction SilentlyContinue
+  Remove-Item $dl -Recurse -Force -ErrorAction SilentlyContinue
   if ($p.ExitCode -ne 0 -or -not (Test-Path $AppExe)) { Stop-Install "the Creatorize Suite installer did not finish (code $($p.ExitCode))." }
   Ok "Creatorize Suite $latest installed$(if ($current) { " (was $current)" })"
 }
@@ -134,7 +138,7 @@ else {
 Step 'Done'
 Note 'Your projects will live in Documents\Creatorize Suite.'
 if (-not $DryRun -and -not $env:CZ_NO_OPEN -and (Test-Path $AppExe) -and -not (Get-Process -Name 'Creatorize Suite' -ErrorAction SilentlyContinue)) {
-  Start-Process $AppExe; Ok 'Opening Creatorize Suite: sign in with Claude on the Home page.'
+  Start-Process $AppExe; Ok 'Opening Creatorize Suite: log in with your Skool account, then sign in with Claude on the Home page.'
 }
 Write-Host ''
 Write-Host 'All set. Run the same command again any time to update or repair.' -ForegroundColor White

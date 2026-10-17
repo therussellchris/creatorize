@@ -1,6 +1,6 @@
 # Creatorize Suite
 
-Make explainer videos in pixel-art or Vox editorial style, edited by pointing at the video and asking Claude.
+Make explainer videos in pixel art, Vox or a style of your own, edited by pointing at the video and asking Claude.
 One command installs everything: the app and every tool it needs.
 
 ## Install
@@ -24,6 +24,28 @@ curl -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/ins
 On a Mac without Homebrew, it asks for your Mac login password once. Nothing shows while you type it; that's normal.
 
 When it's done, Creatorize Suite opens. Click **Sign in** on the Home page to connect your Claude account.
+
+## Window stays dark or empty?
+
+On some graphics cards the Creatorize window opens but stays dark. This command closes Creatorize, updates it and starts
+it in a mode that shows on those computers. Your projects, settings and Skool login are not touched.
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.ps1 | iex
+```
+
+Mac (Terminal):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.sh | bash
+```
+
+On Windows it starts in **Safe display** (3D still runs on your graphics card, full speed). Still dark after that? Close it
+and run `$env:CZ_RESCUE='software'; irm https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.ps1 | iex`
+(software graphics: slower, always shows). On a Mac the rescue starts software graphics. You can switch back any time in
+Settings > System > Graphics.
 
 ## What it installs
 
@@ -56,4 +78,6 @@ On Windows the app also updates itself. On a Mac it shows **Update available** w
 ## Your data
 
 Projects live in `Documents/Creatorize Suite` on your computer. Claude runs through your own Claude Code login.
-Nothing is uploaded anywhere else.
+Vox and custom-style videos (and Thumbnails) make their pictures on your own Higgsfield or Fal.ai account, with your
+own API key (about a cent per picture): those services receive the picture prompts and any reference images. Nothing
+else is uploaded.
