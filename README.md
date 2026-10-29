@@ -25,10 +25,25 @@ On a Mac without Homebrew, it asks for your Mac login password once. Nothing sho
 
 When it's done, Creatorize Suite opens. Click **Sign in** on the Home page to connect your Claude account.
 
+## Creatorize Launcher
+
+The installer also puts the **Creatorize Launcher** on your computer (Windows: Start menu > Creatorize Launcher; Mac:
+Applications). You don't need to open it: every time Creatorize Suite starts, the launcher checks from the outside
+that its window really shows. If it stays dark, the launcher asks once and restarts Creatorize in a mode that shows,
+with no command and nothing to find in Settings.
+
+Open it yourself when Creatorize won't start, or to:
+- **Update** Creatorize Suite (on a Mac it installs the update for you, no dragging into Applications);
+- **Go back to an earlier version** if a new one gives you trouble (your settings and projects from that version come back,
+  and updates pause until you resume them);
+- **Repair** everything Creatorize needs (it runs this same installer for you);
+- **Copy diagnostics** or **Report a problem** when the app itself won't open.
+
 ## Window stays dark or empty?
 
-On some graphics cards the Creatorize window opens but stays dark. This command closes Creatorize, updates it and starts
-it in a mode that shows on those computers. Your projects, settings and Skool login are not touched.
+The launcher fixes this by itself. Without the launcher, or if it doesn't help: on some graphics cards the Creatorize
+window opens but stays dark. This command closes Creatorize, updates it and starts it in a mode that shows on those
+computers. Your projects, settings and Skool login are not touched.
 
 Windows (PowerShell):
 
@@ -60,6 +75,7 @@ Anything you already have is skipped.
 | Node.js (renders the animated intros Claude edits) | ✓ | ✓ |
 | Claude Code (the AI that edits your videos, using your Claude plan) | ✓ | ✓ |
 | Creatorize Suite | ✓ | ✓ |
+| Creatorize Launcher (fixes a window that doesn't show; update, go back, repair) | ✓ | ✓ |
 
 It takes 5-20 minutes, mostly for the downloads. The audio tools bring PyTorch, a few hundred MB.
 

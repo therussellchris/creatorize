@@ -43,6 +43,8 @@ step "Homebrew"
 BREW=""
 for b in "$(command -v brew 2>/dev/null || true)" /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -n "$b" ] && [ -x "$b" ] && { BREW="$b"; break; }; done
 if [ -z "$BREW" ]; then
+  # run by the launcher's Repair: no Terminal to type the password into
+  [ -z "${CZ_NO_TTY:-}" ] || die "Homebrew is missing, and installing it needs your Mac password once. Open Terminal and run: curl -fsSL https://raw.githubusercontent.com/$OWNER/creatorize/main/install.sh | bash"
   note "Installing Homebrew. macOS asks for your Mac login password once (typing shows nothing, that's normal)."
   sudo -v < /dev/tty || die "the password was not accepted. Run the installer again."
   ( while true; do sudo -n true; sleep 50; kill -0 "$$" 2>/dev/null || exit; done ) 2>/dev/null &
@@ -80,7 +82,7 @@ PY
 if [ -n "$MISSING" ]; then
   note "Installing $MISSING (stable-ts brings PyTorch, a few hundred MB) ..."
   "$VENV/bin/python3" -m pip install --quiet --upgrade pip >/dev/null
-  "$VENV/bin/python3" -m pip install --quiet --upgrade $MISSING || die "pip could not install: $MISSING"
+  "$VENV/bin/python3" -m pip install --quiet --no-cache-dir --upgrade $MISSING || die "pip could not install: $MISSING"
   ok "Python packages installed"
 else
   ok "Python packages already installed"
@@ -113,7 +115,9 @@ LATEST="${TAG#v}"
 URL="$RELEASES/download/$TAG/Creatorize-Suite-$LATEST-Mac-$CHIP.dmg"   # name set in .github/workflows/mac-build.yml
 CURRENT=""
 [ -d "$APP" ] && CURRENT=$(defaults read "$APP/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)
-if [ "$CURRENT" = "$LATEST" ]; then
+WHOLE=1   # the same version counts as installed only when its own files are all there (else it is copied again)
+for f in Contents/Resources/app.asar Contents/Resources/templates/stickstory/engine.js Contents/Resources/templates/stickstory/models.js; do [ -s "$APP/$f" ] || WHOLE=""; done
+if [ "$CURRENT" = "$LATEST" ] && [ -n "$WHOLE" ]; then
   ok "Creatorize Suite $CURRENT is up to date"
 elif pgrep -xq "Creatorize Suite"; then
   warn "Creatorize Suite $CURRENT is open, so it was not replaced with $LATEST. Quit it (Cmd+Q) and run the installer again."
@@ -123,12 +127,54 @@ else
   curl -fL --progress-bar -o "$TMP/suite.dmg" "$URL" || die "the download failed ($URL)."
   hdiutil attach -quiet -nobrowse -readonly -mountpoint "$TMP/mnt" "$TMP/suite.dmg" || die "could not open the downloaded installer."
   [ -d "$TMP/mnt/Creatorize Suite.app" ] || die "the installer does not contain Creatorize Suite.app."
-  rm -rf "$APP"
-  ditto "$TMP/mnt/Creatorize Suite.app" "$APP" || die "could not copy the app into Applications."
+  # copied next to the app first, checked, then swapped: a half copy (or a leftover .new from an update that stopped)
+  # never becomes the app (that once left New project saying the Stick stories files were missing)
+  NEW="$APP.new"; OLD="$APP.old"
+  pkill -f "ditto .*Creatorize Suite.app.new" 2>/dev/null || true
+  chmod -R u+w "$NEW" 2>/dev/null || true; rm -rf "$NEW" 2>/dev/null || true
+  [ -e "$NEW" ] && mv "$NEW" "$NEW.trash-$$" 2>/dev/null
+  ditto "$TMP/mnt/Creatorize Suite.app" "$NEW" || die "could not copy the app into Applications."
   hdiutil detach -quiet "$TMP/mnt" || true
-  xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true      # the app isn't signed with Apple yet
+  NEWVER=$(defaults read "$NEW/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)
+  for f in Contents/Resources/app.asar Contents/Resources/files.json Contents/Resources/templates/stickstory/engine.js Contents/Resources/templates/stickstory/models.js; do
+    [ -s "$NEW/$f" ] || { rm -rf "$NEW"; die "the copy of Creatorize Suite is incomplete ($f). Your current app was not changed: restart the Mac and run the installer again."; }
+  done
+  [ "$NEWVER" = "$LATEST" ] || { rm -rf "$NEW"; die "the copied app says version '$NEWVER', not $LATEST. Your current app was not changed: run the installer again."; }
+  xattr -dr com.apple.quarantine "$NEW" 2>/dev/null || true      # the app isn't signed with Apple yet
+  rm -rf "$OLD" 2>/dev/null || true
+  if [ -e "$APP" ]; then mv "$APP" "$OLD" || die "could not move the old app aside (is Creatorize Suite still open?)."; fi
+  mv "$NEW" "$APP" || { [ -e "$OLD" ] && mv "$OLD" "$APP"; die "could not put the new app in place; the old one is back."; }
+  rm -rf "$OLD" "$APP".new.trash-* 2>/dev/null || true
   ok "Creatorize Suite $LATEST installed in Applications${CURRENT:+ (was $CURRENT)}"
 fi
+fi
+
+# ---- Creatorize Launcher: watches every start and fixes a window that doesn't show; updates, goes back, repairs ----
+step "Creatorize Launcher"
+LAPP="/Applications/Creatorize Launcher.app"
+if [ -n "${CZ_FROM_LAUNCHER:-}" ]; then ok "the launcher is running this repair, so it stays as it is"
+elif [ -n "${CZ_SKIP_APP:-}" ]; then note "(test: CZ_SKIP_APP set, launcher step skipped)"
+else
+  LJ=$(curl -fsSL "https://github.com/$OWNER/creatorize/releases/latest/download/launcher.json" 2>/dev/null || true)
+  LVER=$(printf '%s\n' "$LJ" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -1)
+  if [ "$CHIP" = "arm64" ]; then LKEY="macArm64"; else LKEY="macX64"; fi
+  LZIP=$(printf '%s\n' "$LJ" | sed -n "s/.*\"$LKEY\": *\"\\([^\"]*\\)\".*/\\1/p" | head -1)
+  LCUR=""; [ -d "$LAPP" ] && LCUR=$(defaults read "$LAPP/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)
+  if [ -z "$LVER" ] || [ -z "$LZIP" ]; then
+    if [ -n "$LCUR" ]; then ok "Creatorize Launcher $LCUR is installed"; else note "not published yet: Creatorize Suite installs it by itself later"; fi
+  elif [ "$LCUR" = "$LVER" ]; then ok "Creatorize Launcher $LCUR is up to date"
+  elif pgrep -fq "Creatorize Launcher.app/Contents/MacOS"; then warn "the launcher is open, so it was not updated: it updates itself later"   # (-x matches only 16 characters of a name)
+  else
+    LTMP=$(mktemp -d)
+    if curl -fsSL -o "$LTMP/l.zip" "https://github.com/$OWNER/creatorize/releases/latest/download/$LZIP" && ditto -x -k "$LTMP/l.zip" "$LTMP/x" && [ -d "$LTMP/x/Creatorize Launcher.app" ]; then
+      rm -rf "$LAPP"
+      if ditto "$LTMP/x/Creatorize Launcher.app" "$LAPP"; then
+        xattr -dr com.apple.quarantine "$LAPP" 2>/dev/null || true      # not signed with Apple yet, like the app
+        ok "Creatorize Launcher $LVER installed in Applications"
+      else warn "the launcher could not be copied into Applications; Creatorize Suite tries again by itself later"; fi
+    else warn "the launcher did not download; Creatorize Suite tries again by itself later"; fi
+    rm -rf "$LTMP"
+  fi
 fi
 
 step "Done"

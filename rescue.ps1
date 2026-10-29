@@ -71,10 +71,13 @@ if ($latest -and $file) {
 }
 
 Step 'Starting Creatorize Suite'
-# Safe display (--safe-graphics) exists from 0.15.2, software graphics (--software-graphics) from 0.15.0
+# Safe display (--safe-graphics) exists from 0.15.2, software graphics (--software-graphics) from 0.15.0. Both clear the
+# GPU caches on the way and are saved, like picking them in Settings. Safe display keeps 3D (previews and exports) on the
+# graphics card at full speed, so it is always the first rescue; software (slower) only when asked for. (0.16.4 and 0.16.5
+# were started plainly here, for 0.16.3's fault: a member on 0.16.5 still needed --safe-graphics, 2026-10-21.)
 $v = Ver $current
 if ($Software -or ($v -and $v -lt [version]'0.15.2')) { $flag = '--software-graphics'; $how = 'software graphics (slower, but it always shows; switch back in Settings > System > Graphics)' }
-else { $flag = '--safe-graphics'; $how = 'Safe display (3D still on your graphics card)' }
+else { $flag = '--safe-graphics'; $how = 'Safe display (3D still on your graphics card, full speed)' }
 if ($v -and $v -lt [version]'0.15.0') { Warn "this version ($current) is too old for the rescue start: run this again when you are online to update it"; $flag = $null; $how = 'normal mode' }
 if ($DryRun) { Note "(test mode) would start Creatorize Suite $(if ($flag) { $flag })" }
 else {
