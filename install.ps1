@@ -49,7 +49,7 @@ function Install-Winget($id, $name, [scriptblock]$direct) {
   $why = Why-Winget $code
   if (-not $direct) { Stop-Install "winget could not install $name (code $code$why). Run the installer again, or install $name by hand." }
   Warn "winget could not install $name (code $code$why). Downloading it directly instead."
-  try { & $direct } catch { Stop-Install "could not install $name (winget code $code$why; direct download: $($_.Exception.Message)). Turn off your antivirus's HTTPS/web scanning or any VPN for a moment and run the installer again." }
+  try { & $direct } catch { Stop-Install "could not install $name (winget code $code$why; direct download: $($_.Exception.Message)). Allow the installer in your antivirus's web protection (or pause a VPN or proxy for a moment) and run the installer again." }
   Refresh-Path
   Ok "$name installed"
 }
