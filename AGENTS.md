@@ -204,7 +204,11 @@ again: the script skips everything that is already done.
    Remove-Item Env:CZ_INSTALL_DRY -ErrorAction SilentlyContinue; $env:CZ_NO_OPEN = "1"; powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\creatorize-setup\install.ps1"
    ```
 
-   On Windows the exit code tells you nothing: the script reports through its lines (below).
+   Exit code: 0 = all set; 3 = finished, with something left to do (its `[!]` lines and the list at the end: Claude
+   Code could not be reached, the Visual C++ Redistributable was declined, Creatorize was open, ...); 1 = stopped (the
+   last line says why). Behind a proxy that wants a login, set `$env:HTTPS_PROXY = "http://<user>:<password>@<host>:<port>"`
+   in the same command first (the member types the password or gives it to you for this run only; never print it). A
+   company proxy that takes the Windows login needs nothing: the script sends it.
 
 ### Mac
 
@@ -224,7 +228,8 @@ again: the script skips everything that is already done.
    ```
 
    If section 3 said `Rosetta: 1`: `CZ_NO_TTY=1 CZ_NO_OPEN=1 arch -arm64 /bin/bash "$HOME/.creatorize-setup/install.sh"`.
-   Exit code 0 = finished, 1 = stopped (the last line says why).
+   Exit code 0 = all set, 3 = finished with something left to do (the list at the end), 1 = stopped (the last line
+   says why). A proxy: curl uses `HTTPS_PROXY` (`http://<user>:<password>@<host>:<port>` works) by itself.
 
 ### Reading the output
 
@@ -240,6 +245,8 @@ Under each step:
 - `Install stopped: ...`: the script ended here, and nothing after this step ran. Fix the cause (section 9), then run
   the same command again.
 - `All set.` at the very end: it finished.
+- `Finished, with N thing(s) left to do:` at the very end: everything else is installed; each line under it says what is
+  left and what to do (section 9 has them too).
 
 Then check the result for real (section 6): a step that says `[ok]` can still be broken.
 
@@ -258,6 +265,9 @@ $py = (Get-Command python -ErrorAction SilentlyContinue | Where-Object { $_.Sour
 ```
 
 `claude: not found` while `.local\bin\claude.exe` exists is fine: Creatorize finds it there.
+When the installer said `Creatorize Suite is set to use this Python (<path>)` (the `python` on PATH was 3.13, conda,
+32-bit or broken), check that path instead of `python`: `& "<path>" -c "import numpy, scipy, PIL, stable_whisper"`.
+The app's own version is also in its `resources\files.json` (`version`, a beta included).
 
 Mac:
 
@@ -343,18 +353,15 @@ close Creatorize, then start it once more.
 
 Still not showing? In this order, reading the status file after each step:
 
-1. **Repair.** Run the installer again (section 5). It is exactly what the launcher's **Repair** button does: it puts
-   back missing tools and an incomplete app. When an antivirus removed Creatorize's own files (section 9), the member
-   first restores them and allows Creatorize, then the same version is installed again:
-   - Windows (ask the member to close Creatorize first):
-     ```powershell
-     $v = (Get-Item "$env:LOCALAPPDATA\Programs\creatorize-suite\Creatorize Suite.exe").VersionInfo.ProductVersion -replace "\.0$", ""
-     $dl = "$env:LOCALAPPDATA\Creatorize Setup\reinstall"; New-Item -ItemType Directory -Force -Path $dl | Out-Null
-     curl.exe -fL -o "$dl\Creatorize-Suite-Setup-$v.exe" "https://github.com/therussellchris/creatorize-suite-releases/releases/download/v$v/Creatorize-Suite-Setup-$v.exe"
-     $p = Start-Process "$dl\Creatorize-Suite-Setup-$v.exe" -ArgumentList "/S" -Wait -PassThru; "installer exit code: $($p.ExitCode)"; Remove-Item $dl -Recurse -Force
-     ```
-   - Mac: the installer copies the app again by itself when its files are incomplete. If files are still missing, the
-     launcher's **Fix it with Claude** (step 4) reinstalls the same version.
+1. **Repair.** Run the installer again (section 5), with Creatorize closed (ask the member first: an open app is never
+   replaced, the script says `... is open, so the installer did not ...`). It checks every file of the installed app
+   against that version's own list (`resources\files.json`; Mac: `Contents/Resources/files.json`) and installs the same
+   version again when one is missing or changed (Windows: the release's Setup, checked against its sha512 before it
+   runs; Mac: copied from the release's .dmg). To repair without updating, as the launcher's **Repair** button does,
+   set `CZ_INSTALL_KEEP=installed` for the run (Windows: `$env:CZ_INSTALL_KEEP = "installed"` in the same command;
+   Mac: `CZ_INSTALL_KEEP=installed CZ_NO_TTY=1 ...`). After **Go back** in the launcher (updates paused) the script keeps
+   the version gone back to by itself. When an antivirus removed Creatorize's own files (section 9), the member first
+   restores them and allows Creatorize, else they are gone again right after (`... missing again right after`).
 2. **Go back.** Ask the member to open **Creatorize Launcher** (Windows: Start menu; Mac: Applications), click
    **Go back to an earlier version** and pick the version before the newest. This helps when the newest version itself
    is the problem. Projects stay. On Windows, automatic updates then pause until they click **Resume updates** in the
@@ -388,12 +395,18 @@ All of these happened on members' computers or are handled by the installer for 
 | `winget is missing. It comes with "App Installer" from the Microsoft Store.`, then `Install stopped` | winget isn't registered for this user yet (common on a new PC), or App Installer is missing | You, with the member's yes: command A. Still missing: the member installs or updates **App Installer** in the Store window the script opened. Then run the installer again. |
 | `winget could not install ffmpeg (code -1978335138: something on this PC checks your internet traffic...)` (also git, Python, Node.js), then `Downloading it directly instead` | An antivirus with HTTPS or web scanning, a VPN or a proxy re-signs web traffic, and winget refuses it. The script falls back to the official downloads | Nothing, when the next line is `[ok]`. If the direct download fails too (`Install stopped: could not install ...`): ask the member to disconnect a VPN for the install, or to add github.com, gyan.dev, nodejs.org and python.org to their antivirus's web-protection exceptions. Never ask them to turn the antivirus off. Then run the installer again. |
 | `Smart App Control is On. It blocks the Python packages...`; later `WinError 4551` or `blocked by application control policy` (Python, transcription) | Windows 11 Smart App Control only lets signed programs run. The Python packages behind Creatorize's transcription and audio steps are not signed | The member's decision, never yours. Explain before the install: while it is On, transcription and the audio steps don't work. Turning it off: Windows Security > App & browser control > Smart App Control settings > Off. Windows can only turn it back on by resetting or reinstalling Windows; Microsoft Defender keeps protecting the PC either way. If it is already Off and the error stays, an organisation's App Control policy blocks it: they ask whoever manages the PC. |
-| `WinError 1114` ... `c10.dll` (importing the Python packages, transcription) | PyTorch can't start: the Microsoft Visual C++ Redistributable (x64) is missing (its step showed `[!]`, often because the permission box was declined) | With the member's yes (Windows asks for admin rights): command B. |
-| `Python was installed but is not found yet. Open a new PowerShell window...` | Python's folder is in the PATH, but only new processes see it | Run the installer again (each run reads the PATH fresh). |
-| `pip could not install: ...` (with `[!] ERROR ...` lines) | A download failed (internet, antivirus web scanning), the disk is full, or Smart App Control | Read the ERROR lines, check free space, fix the cause, run again. |
+| `WinError 1114` ... `c10.dll` (importing the Python packages, transcription), or `[!] PyTorch (transcription) cannot start: Windows is missing the Microsoft Visual C++ Redistributable` / `Transcription will not work until ...` | PyTorch can't start: the Microsoft Visual C++ Redistributable (x64) is missing, usually because the permission box was declined. The installer asks once more by itself | With the member's yes (Windows asks for admin rights): command B, then run the installer again (it checks that PyTorch starts). |
+| `... is Python 3.13` (3.14, `a conda Python`, `32-bit Python`, `does not run`): `not used (it stays as it is)`, then `Installing Python 3.12 ...` and `Creatorize Suite is set to use this Python (...)` | PyTorch (transcription) doesn't run on that Python. The installer leaves it alone, installs Python 3.12 next to it and points Creatorize at it (Settings > System > Tool paths > Python; only that setting changes) | Nothing. If it says `could not set Creatorize Suite to use ...`: the member pastes the path it shows into Settings > System > Tool paths > Python. |
+| `Python 3.12 was installed but does not start. Open a new PowerShell window...` | Python's folder is in the PATH, but only new processes see it, or the install was blocked | Run the installer again (each run reads the PATH fresh). Again: restart the computer first. |
+| `[!] pip could not install: ...` (in the list at the end) | A download failed (internet, a proxy, antivirus web scanning), the disk is full, or Smart App Control | Check free space and the connection, fix the cause, run again. The app itself is installed either way. |
+| `[!] Claude Code did not install: claude.ai could not be reached` / `claude.ai sent a web page instead of its installer` | No internet to claude.ai, a filter, or a network that wants a login first (hotel or office Wi-Fi) | The member opens https://claude.ai in their browser (and logs in to the Wi-Fi if it asks), then you run the installer again. Everything else is already installed. |
 | `WARNING: Cache entry deserialization failed` (pip) | A harmless pip warning | Nothing. |
 | `could not reach the Creatorize Suite releases` / `could not reach GitHub` | No internet, or a firewall, proxy or VPN blocks github.com | Command C. The member allows it or uses another network. |
-| `Creatorize Suite ... is open, so it was not updated` (Mac: `... so it was not replaced`) | The app was running | Ask the member to close it (Mac: Cmd+Q), run the installer again. |
+| `Creatorize Suite ... is open, so the installer did not ...` (from the launcher's Repair: `Install stopped: Creatorize Suite is open, so the launcher could not ...`) | The app was running and something of it had to be replaced | Ask the member to close it (Mac: Cmd+Q), run the installer again. |
+| `N file(s) of Creatorize Suite X are missing or changed (...): installing X again` | An antivirus took or changed some of its files, or an update stopped half way | Nothing: the same version goes back in. `... missing again right after`: an antivirus removes them as they come; the member allows Creatorize (below), then run again. |
+| `the download of Creatorize Suite X was damaged on the way (it did not match the release)` | Something changed the download (an antivirus's web scanning, a proxy, a cut connection). It was not run | Run again. Again: the member allows github.com in the antivirus's web protection or pauses a VPN / proxy for the install. |
+| `Updates are paused (you went back to X in the Creatorize Launcher)` | The member used Go back: the installer keeps that version | Nothing. Newer versions come back when they press **Resume updates** in the launcher. |
+| `Creatorize Suite X is installed (a test version, newer than Y)` | A beta is installed: the installer never replaces it with an older release | Nothing. |
 | `the Creatorize Suite installer did not finish (code N)` | The setup was blocked, usually by an antivirus, or the app was still running | Check the antivirus's quarantine ("Allowing Creatorize in an antivirus" below), make sure Creatorize is closed, run again. |
 | Windows: "Creatorize Suite cannot be closed. Please close it manually and click Retry", or "Failed to uninstall old application files" | A program Creatorize started (its Claude, Python or Blender) still holds one of its files | Ask the member to close Creatorize, wait a minute, run again. Still: restart the computer, then run again. Don't end `claude`, `python` or `blender` processes yourself. |
 | The launcher says "Creatorize Suite didn't finish updating" (the app's program is missing) | An update stopped half way | Run the installer again (or the member clicks **Finish the update** in the launcher). Projects and settings stay. |
@@ -479,6 +492,8 @@ The folders to allow. Windows: `%LOCALAPPDATA%\Programs\creatorize-suite`, `%LOC
 | The member's projects (never touch) | `Documents\Creatorize Suite` | `~/Documents/Creatorize Suite` |
 | The app's own Python environment | (none: the installed Python) | `~/Library/Application Support/Creatorize Suite/python` |
 | Releases | https://github.com/therussellchris/creatorize-suite-releases | https://github.com/therussellchris/creatorize-suite-mac-releases |
+| The app's own ffmpeg + Python 3.12 (the app downloads and checks them itself the first time it runs) | the `runtime` folder in the app's data folder (above) | the `runtime` folder in the app's data folder (above) |
+| The project list (database; never edit it by hand) | `database\suite.db` in the app's data folder (older versions: in the projects folder) | `database/suite.db` in the app's data folder (older versions: in the projects folder) |
 
 The rescue commands (the member can paste them when the window stays dark; they close Creatorize, update it and start
 it in a safer graphics mode):

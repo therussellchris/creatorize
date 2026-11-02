@@ -91,6 +91,7 @@ Anything you already have is skipped.
 | git (edit history, so every change can be undone) | ✓ | ✓ |
 | ffmpeg (export with sound) | ✓ | ✓ |
 | Python 3 + numpy, scipy, pillow, stable-ts (audio pipeline) | ✓ | ✓ (in the app's own Python environment) |
+| The app's own ffmpeg + Python 3.12 (the app downloads and checks them itself the first time it runs) | ✓ | ✓ |
 | Node.js (renders the animated intros Claude edits) | ✓ | ✓ |
 | Claude Code (the AI that edits your videos, using your Claude plan) | ✓ | ✓ |
 | Creatorize Suite | ✓ | ✓ |
@@ -100,8 +101,14 @@ It takes 5-20 minutes, mostly for the downloads. The audio tools bring PyTorch, 
 
 ## Update or repair
 
-Run the same command again. It updates Creatorize Suite if a newer version is out and puts back anything missing.
+Run the same command again. It updates Creatorize Suite if a newer version is out and puts back anything missing:
+every file of the installed app is checked, and when one is missing or changed the same version is installed again.
+Close Creatorize first. If you went back to an earlier version in the Creatorize Launcher, that version stays.
 On Windows the app also updates itself. On a Mac it shows **Update available** when a new version is out.
+
+When something can't be done (for example claude.ai can't be reached right now), everything else is still installed
+and the end of the run lists what is left and what to do. Behind a proxy that wants a login, set `HTTPS_PROXY` to
+`http://<user>:<password>@<host>:<port>` before the command.
 
 ## Manual downloads
 
