@@ -22,6 +22,10 @@ PY_PACKAGES="numpy scipy pillow stable-ts"
 WIN_CMD="irm https://raw.githubusercontent.com/$OWNER/creatorize/main/install.ps1 | iex"
 # CZ_INSTALL_KEEP=installed (the launcher's Repair): repair the version that is installed, never update it
 KEEP=""; [ "${CZ_INSTALL_KEEP:-}" = "installed" ] && KEEP=1
+# CZ_INSTALL_VERSION=x.y.z ("Update Creatorize for me", AGENTS.md section 13, which reads the number from update.json):
+# exactly this release, a beta too. The member asked for it, so it wins over paused updates and a held version. Never goes
+# backwards: a newer installed version stays.
+WANT="${CZ_INSTALL_VERSION:-}"; WANT="${WANT#v}"
 # a launcher from before this installer (no CZ_INSTALL_KEEP): it reads any code but 0 as "Repair stopped" and never
 # quits an open Creatorize, so for it "left to do" ends with 0 and an open app is only a warning
 OLD_LAUNCHER=""; [ -n "${CZ_FROM_LAUNCHER:-}" ] && [ -z "${CZ_INSTALL_KEEP:-}" ] && OLD_LAUNCHER=1
@@ -42,6 +46,13 @@ is_held() { local v; v=$(printf '%s' "$1" | sed 's/\./\\./g'); [ -f "$SUPPORT/up
 
 # versions: prints 1 when $1 is newer, -1 when $2 is, 0 when the same. x.y.z, then a test build (0.24.0-beta.1) is
 # older than 0.24.0 and newer than 0.23.x
+big_dl() {
+  # a big download (member 2026-11-06: HTTP/2 error at 89 %, install over): retries go on from where it stopped, then once more over HTTP/1.1
+  curl -fL --progress-bar --retry 4 --retry-delay 3 --retry-all-errors -C - -o "$1" "$2" && return 0
+  note "The download stopped half way. Trying again ..."
+  rm -f "$1"
+  curl -fL --progress-bar --http1.1 --retry 4 --retry-delay 3 -o "$1" "$2"
+}
 vercmp() {
   local a1 a2 a3 b1 b2 b3 pa="" pb="" x y i
   case "$1" in *-*) pa="${1#*-}" ;; esac
@@ -198,7 +209,11 @@ PAUSED=""; PJ="$HOME/Library/Application Support/Creatorize Launcher/updates-pau
 if [ -f "$PJ" ]; then PAUSED=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$PJ" | head -1); [ -n "$PAUSED" ] || PAUSED="?"; fi
 [ -z "$PAUSED" ] && [ -n "${CZ_NO_UPDATE:-}" ] && PAUSED="?"
 LATEST=""; HELDV=""
-if [ -n "$CURRENT" ] && { [ -n "$KEEP" ] || [ -n "$PAUSED" ]; }; then TARGET="$CURRENT"
+if [ -n "$WANT" ] && ! printf '%s' "$WANT" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$'; then die "CZ_INSTALL_VERSION is '$WANT', which is not a version number like 0.26.0. Nothing was changed."; fi
+if [ -n "$WANT" ]; then
+  TARGET="$WANT"
+  if [ -n "$CURRENT" ] && [ "$(vercmp "$CURRENT" "$WANT")" != "-1" ]; then TARGET="$CURRENT"; fi
+elif [ -n "$CURRENT" ] && { [ -n "$KEEP" ] || [ -n "$PAUSED" ]; }; then TARGET="$CURRENT"
 elif [ -z "$CURRENT" ] && [ -n "$PAUSED" ] && [ "$PAUSED" != "?" ]; then TARGET="$PAUSED"
 else
   # github.com's own "latest release" redirect, not the API (which allows 60 requests an hour per network)
@@ -219,7 +234,8 @@ else
   if [ -n "$CURRENT" ] && [ "$TARGET" != "$CURRENT" ] && [ -f "$SUPPORT/updates/held.json" ] && is_held "$TARGET"; then HELDV="$TARGET"; TARGET="$CURRENT"; fi
 fi
 if [ -n "$CURRENT" ] && [ "$TARGET" = "$CURRENT" ] && [ "$NBAD" = 0 ]; then
-  if [ -n "$HELDV" ]; then ok "Creatorize Suite $CURRENT is complete. $HELDV didn't pass its test on this Mac, so it wasn't installed; a newer version is tested again by itself."
+  if [ -n "$WANT" ]; then ok "Creatorize Suite $CURRENT is installed and complete (every file checked; the update you asked for is $WANT)"
+  elif [ -n "$HELDV" ]; then ok "Creatorize Suite $CURRENT is complete. $HELDV didn't pass its test on this Mac, so it wasn't installed; a newer version is tested again by itself."
   elif [ -n "$PAUSED" ]; then ok "Creatorize Suite $CURRENT is complete. Updates are paused (you went back to it in the Creatorize Launcher): press Resume updates there to get newer versions."
   elif [ -n "$LATEST" ] && [ "$(vercmp "$CURRENT" "$LATEST")" = "1" ]; then ok "Creatorize Suite $CURRENT is installed (a test version, newer than $LATEST) and complete"
   elif [ -n "$KEEP" ]; then ok "Creatorize Suite $CURRENT is complete (every file checked)"
@@ -244,7 +260,7 @@ else
   fi
   note "Downloading Creatorize Suite $TARGET ..."
   TMP=$(mktemp -d); trap 'hdiutil detach -quiet "$TMP/mnt" >/dev/null 2>&1 || true; rm -rf "$TMP"' EXIT
-  curl -fL --progress-bar -o "$TMP/suite.dmg" "$URL" || die "the download failed ($URL). Nothing was changed: check the internet connection and run the installer again."
+  big_dl "$TMP/suite.dmg" "$URL" || die "the download failed ($URL). Nothing was changed: check the internet connection and run the installer again."
   # (a .dmg carries its own checksums: one damaged on the way does not open)
   hdiutil attach -quiet -nobrowse -readonly -mountpoint "$TMP/mnt" "$TMP/suite.dmg" || die "the download of Creatorize Suite $TARGET was damaged on the way (it does not open). Nothing was changed: run the installer again."
   [ -d "$TMP/mnt/Creatorize Suite.app" ] || die "the installer does not contain Creatorize Suite.app."
@@ -290,7 +306,7 @@ else
   elif pgrep -fq "Creatorize Launcher.app/Contents/MacOS"; then warn "the launcher is open, so it was not updated: it updates itself later"   # (-x matches only 16 characters of a name)
   else
     LTMP=$(mktemp -d)
-    if curl -fsSL -o "$LTMP/l.zip" "https://github.com/$OWNER/creatorize/releases/latest/download/$LZIP" && ditto -x -k "$LTMP/l.zip" "$LTMP/x" && [ -d "$LTMP/x/Creatorize Launcher.app" ]; then
+    if big_dl "$LTMP/l.zip" "https://github.com/$OWNER/creatorize/releases/latest/download/$LZIP" && ditto -x -k "$LTMP/l.zip" "$LTMP/x" && [ -d "$LTMP/x/Creatorize Launcher.app" ]; then
       # copied next to the old one first, checked, then swapped (the same way as the app above and the launcher's own
       # update, src/shared/bundleSwap.ts): a copy that fails or is cut off never leaves the member without a launcher
       LNEW="$LAPP.new"; LOLD="$LAPP.trash-$$"

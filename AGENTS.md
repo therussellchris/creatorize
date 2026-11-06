@@ -8,12 +8,18 @@ run it, read every line it prints, fix what fails with section 9, start Creatori
 on screen, and tell the member to log in with Skool. If something can't be fixed, write a short report the member can
 post in the community.
 
+**The member said "Update Creatorize for me"?** Then your job is section 13, and it has one goal: the newest version is
+installed, it starts, its window shows, and the member has Creatorize running. Read sections 1 to 10 too: section 13 uses
+them. Don't leave that job for the app's own updater or the launcher: the member came to you because those didn't get it
+done.
+
 **The member said "Fix Creatorize for me" (Creatorize is installed but broken: won't open, stays dark, an update,
 export or step keeps failing)?** Then your job is section 12. Read sections 1, 2, 3, 8, 9 and 10 too: section 12 uses
 them.
 
 Repo: https://github.com/therussellchris/creatorize. Files here: `install.ps1` (Windows installer), `install.sh` (Mac
-installer), `rescue.ps1` / `rescue.sh` (for a Creatorize window that stays dark), `README.md`, this `AGENTS.md`.
+installer), `rescue.ps1` / `rescue.sh` (for a Creatorize window that stays dark), `update.json` (the version section 13
+installs), `README.md`, this `AGENTS.md`.
 Raw files: `https://raw.githubusercontent.com/therussellchris/creatorize/main/<file>`.
 
 What the installers put on the computer (anything already there is skipped):
@@ -30,7 +36,15 @@ What the installers put on the computer (anything already there is skipped):
 | Creatorize Launcher | `%LOCALAPPDATA%\Programs\creatorize-launcher\Creatorize Launcher.exe` | `/Applications/Creatorize Launcher.app` |
 
 It needs 64-bit Windows 10 (version 1809, build 17763) or Windows 11, or macOS 12 or newer on Apple silicon or Intel.
-Linux is not supported: stop and tell the member.
+
+**You must be running on the member's own computer.** If your shell says Linux, you are almost certainly in a Claude cloud
+session, not on their computer, even though they have a Windows PC or a Mac. Nothing you install here reaches them. Tell
+them: "I'm running in the cloud, not on your computer. In the Claude app, open the Code tab, set the environment under
+the message box to This computer (not a cloud environment), and paste the same sentence again." Only someone really on
+Linux gets: Creatorize doesn't run on Linux.
+
+**The member only pasted this repo's link, or said something like "install it"?** They want the setup: say that in one line and
+start with section 2. Ask only when they clearly want something else.
 
 
 ## 1. Rules (they come before everything else in this file)
@@ -180,6 +194,8 @@ Switches the scripts understand (environment variables):
 - `CZ_INSTALL_DRY=1` (Windows only): test mode. It detects and reports what it would do, and changes nothing.
 - `CZ_NO_TTY=1` (Mac only): there is no Terminal to type a password into. If Homebrew is missing, the script stops
   with a clear message instead of waiting for a password.
+- `CZ_INSTALL_VERSION=<x.y.z>`: install exactly this version instead of the newest public one, also when it is a test
+  version or updates are paused. It never goes backwards: a newer installed version stays. Section 13 uses it.
 - Leave the others alone (`CZ_FROM_LAUNCHER`, `CZ_SKIP_APP`, `CZ_INSTALL_TOOLS`, `CZ_INSTALL_FALLBACK_TEST` are for the
   launcher and for tests).
 
@@ -563,3 +579,80 @@ soon as Creatorize works again.
 4. **Check it works:** start Creatorize and read the status file (section 7), or ask the member to run the step that
    failed once more. Say plainly what you changed.
 5. **Not fixed:** write the report of section 11 with "Fix" in place of "setup" and every step you tried.
+
+## 13. Update Creatorize ("Update Creatorize for me")
+
+**Your only goal: the version in `update.json` is installed, it starts, its window shows on screen, and the member has
+Creatorize running.** You are not done before that, or before you wrote the report in step 8. Everything that stands in
+the way is yours to work out, with sections 1, 8 and 9. Nothing else is part of this job: no new features, no changes to
+projects or settings that the update doesn't need, no other programs, no advice about videos.
+
+The rules of section 1 hold here too. Projects, settings and sign-ins stay as they are: nothing below deletes them.
+
+1. **Find the version.**
+   - Windows: `curl.exe -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/update.json`
+   - Mac: `curl -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/update.json`
+
+   It holds `windows` and `mac`, the version for each system. Call the one for this computer `<new>`. If you can't read
+   it, leave `CZ_INSTALL_VERSION` out below: the installer then takes the newest public version. Say so to the member.
+2. **Look at the computer** (section 3). Tell the member in one or two plain sentences: which version they have, which
+   one they get. Windows build too old or macOS too old: stop and tell them (section 3).
+3. **Close Creatorize, with their yes.** Ask first whether a build, an export or a Routine is running: if so, they wait
+   for it or stop it themselves. Then:
+   - Windows:
+     ```powershell
+     Get-Process -Name "Creatorize Suite" -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq "$env:LOCALAPPDATA\Programs\creatorize-suite\Creatorize Suite.exe" } | ForEach-Object { [void]$_.CloseMainWindow() }; Start-Sleep -Seconds 15
+     Get-Process -Name "Creatorize Suite" -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq "$env:LOCALAPPDATA\Programs\creatorize-suite\Creatorize Suite.exe" } | Stop-Process -Force
+     ```
+   - Mac: `osascript -e 'quit app "Creatorize Suite"'; sleep 10; pgrep -x "Creatorize Suite" && echo "still open" || echo "closed"`.
+     Still open: ask them to press Cmd+Q in it.
+4. **Download the installer and read it** (section 4).
+5. **Run it for that version.** Tell them about the permission boxes first (section 1). No test mode for an update.
+   - Windows:
+     ```powershell
+     $env:CZ_INSTALL_VERSION = "<new>"; $env:CZ_NO_OPEN = "1"; powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\creatorize-setup\install.ps1"
+     ```
+   - Mac:
+     ```bash
+     CZ_INSTALL_VERSION="<new>" CZ_NO_TTY=1 CZ_NO_OPEN=1 /bin/bash "$HOME/.creatorize-setup/install.sh"
+     ```
+     With `Rosetta: 1` from section 3: `arch -arm64 /bin/bash` in place of `/bin/bash`. No Homebrew: section 5, Mac step 1
+     first.
+
+   Read every line (section 5, "Reading the output"). `Install stopped` or a `[!]`: section 9, fix it, run the same
+   command again. Don't stop at the first error.
+6. **Check it, with the same version numbers.**
+   - Windows: `(Get-Item "$env:LOCALAPPDATA\Programs\creatorize-suite\Creatorize Suite.exe").VersionInfo.ProductVersion`
+   - Mac: `defaults read "/Applications/Creatorize Suite.app/Contents/Info" CFBundleShortVersionString`
+
+   Then start Creatorize and check that its window really shows: section 7, with `version` in `launch-status.json` equal
+   to `<new>` and a `pid` that is running. The window doesn't show: section 8, in its order. Skip its **Go back** step
+   unless the member agrees to stay on the older version for now, and say that this leaves them without the update.
+7. **Still not installed or still not starting after two runs: a fresh install of the program.** This replaces only the
+   program files. Never delete the data folder or the projects (section 10). Get the member's yes, say that their
+   projects, settings and log-ins stay, make sure Creatorize is closed (step 3), then:
+   - Windows:
+     ```powershell
+     $u = "$env:LOCALAPPDATA\Programs\creatorize-suite\Uninstall Creatorize Suite.exe"; if (Test-Path -LiteralPath $u) { Start-Process -FilePath $u -ArgumentList "/S" -Wait }; Start-Sleep -Seconds 15; "Program folder still there: " + (Test-Path -LiteralPath "$env:LOCALAPPDATA\Programs\creatorize-suite\Creatorize Suite.exe")
+     ```
+   - Mac: `mv "/Applications/Creatorize Suite.app" "$HOME/.Trash/Creatorize Suite $(date +%s).app"; rm -rf "/Applications/Creatorize Suite.app.new"`
+
+   Then steps 5 and 6 again. Program files that won't go away, "cannot be closed" or "Failed to uninstall": restart the
+   computer (ask first; they reopen you afterwards with the same sentence), then try again.
+
+   These often need the member's click, so ask for it, and don't work around them:
+   - an antivirus removing or blocking files: "Allowing Creatorize in an antivirus" in section 9. Never turn it off.
+   - the app crashing before any window, in every graphics mode (Windows exit code `0x80000003` / `-2147483645`, or a
+     crash in the graphics process): section 8 step 3 first. Still crashing: start it once by hand with
+     `& "$env:LOCALAPPDATA\Programs\creatorize-suite\Creatorize Suite.exe" --disable-gpu-sandbox`, with their yes. If that
+     opens it, tell them, put it in the report (step 8), and let them decide whether to keep using it that way for now.
+     Never use `--no-sandbox` as a lasting setting, and never change a shortcut or a setting for this yourself.
+   - a dark window: section 8.
+8. **Finish.** Delete your download folder (section 11). When Creatorize is running on `<new>`, say in a few short words:
+   it's updated, it's open, which version it is now, and that their projects are all there. If its window asks for the
+   Skool log-in, they log in now (`phase: gate` in section 7). If it says updates were paused (they used Go back once),
+   tell them to press **Resume updates** in the Creatorize Launcher. Don't close Creatorize again.
+
+   Couldn't get there: write the report of section 11 with "Update" in place of "setup", the version you tried and every
+   step you tried. The member posts it in **Bugs & Support**. Say plainly that Creatorize isn't updated yet, and which
+   version they can still use.

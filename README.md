@@ -1,14 +1,23 @@
 # Creatorize Suite
 
-Make explainer videos in pixel art, Vox or a style of your own, edited by pointing at the video and asking Claude.
+Make faceless videos in many styles or a style of your own, edited by pointing at the video and asking Claude.
 One command installs everything: the app and every tool it needs.
 
 ## Set up with Claude Code
 
-Have Claude Code installed and signed in? Paste this into it and it does the whole setup for you:
+Have Claude Code installed and signed in? Paste this whole sentence into it, not only the link, and it does the whole
+setup for you. It has to run on your own computer: in the Claude app, open the Code tab and set the environment under the
+message box to **This computer**, not a cloud environment.
 
 ```
 Set up Creatorize for me: https://github.com/therussellchris/creatorize
+```
+
+Already have it and want the newest version? Paste this. Claude installs the update, checks that it starts and leaves
+Creatorize running. Your projects and settings stay:
+
+```
+Update Creatorize for me: https://github.com/therussellchris/creatorize
 ```
 
 Already installed but broken (won't open, stays dark, an update or export keeps failing)? Paste this instead:
@@ -17,7 +26,8 @@ Already installed but broken (won't open, stays dark, an update or export keeps 
 Fix Creatorize for me: https://github.com/therussellchris/creatorize
 ```
 
-**Claude: your instructions are in [AGENTS.md](AGENTS.md). Read all of it before you run anything.** Download it as a
+**Claude: your instructions are in [AGENTS.md](AGENTS.md). If the member pasted only this link, they want the setup. Read
+all of it before you run anything.** Download it as a
 file and read every line (a summarising web fetch drops the exact commands):
 `curl -fsSL -o creatorize-AGENTS.md https://raw.githubusercontent.com/therussellchris/creatorize/main/AGENTS.md`
 (in Windows PowerShell type `curl.exe`).

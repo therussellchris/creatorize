@@ -24,6 +24,10 @@ $DryRun = [bool]$env:CZ_INSTALL_DRY    # test mode: detect and report, change no
 # CZ_INSTALL_KEEP=installed (the launcher's Repair): repair the version that is installed (every file checked, that exact
 # version installed again when one is missing or changed), never update it; the launcher has its own Update
 $Keep = $env:CZ_INSTALL_KEEP -eq 'installed'
+# CZ_INSTALL_VERSION=x.y.z ("Update Creatorize for me", AGENTS.md section 13, which reads the number from update.json):
+# exactly this release, a beta too. The member asked for it, so it wins over paused updates and a held version. Never goes
+# backwards: a newer installed version stays.
+$Want = if ($env:CZ_INSTALL_VERSION) { $env:CZ_INSTALL_VERSION.Trim().TrimStart('v') } else { '' }
 # a launcher from before this installer (1.1.5 and older, no CZ_INSTALL_KEEP): it reads any code but 0 as "Repair
 # stopped" and never closes an open Creatorize, so for it "left to do" ends with 0 and an open app is only a warning
 $OldLauncher = $env:CZ_FROM_LAUNCHER -and -not $env:CZ_INSTALL_KEEP
@@ -104,7 +108,18 @@ function Web-Get($url) {
   if ($c -is [byte[]]) { $c = [Text.Encoding]::UTF8.GetString($c) }
   return [string]$c
 }
-function Web-File($url, $out) { Invoke-WebRequest -Uri (Net-Url $url) -OutFile $out -UseBasicParsing @PX }
+function Web-File($url, $out) {
+  # a network hiccup half way doesn't end the install: three tries
+  for ($i = 1; ; $i++) {
+    try { Invoke-WebRequest -Uri (Net-Url $url) -OutFile $out -UseBasicParsing @PX; return }
+    catch {
+      $code = 0; try { $code = [int]$_.Exception.Response.StatusCode } catch { }
+      if ($i -ge 3 -or $code -eq 404) { throw }
+      Note 'The download stopped half way. Trying again ...'
+      if (-not $env:CZ_INSTALL_MIRROR) { Start-Sleep -Seconds 3 }
+    }
+  }
+}
 
 # ---- direct downloads (the winget fallback): per user, no admin rights ----
 # CZ_INSTALL_TOOLS (tests): put tools in that folder and leave the user's PATH alone
@@ -564,7 +579,9 @@ $paused = Paused-Version
 $bad = @()
 if ($current) { $bad = @(Test-AppFiles $inst.manifest) }
 $latest = $null; $heldTarget = $null
-if ($current -and ($Keep -or $null -ne $paused)) { $target = $current }
+if ($Want -and $Want -notmatch '^\d+\.\d+\.\d+(-beta\.\d+)?$') { Stop-Install "CZ_INSTALL_VERSION is '$Want', which is not a version number like 0.26.0. Nothing was changed." }
+if ($Want) { $target = if ($current -and (Cmp-Ver $current $Want) -ge 0) { $current } else { $Want } }
+elseif ($current -and ($Keep -or $null -ne $paused)) { $target = $current }
 elseif (-not $current -and $paused) { $target = $paused }
 else {
   $latest = Release-Info $null
@@ -576,7 +593,8 @@ else {
 }
 $running = Get-Process -Name 'Creatorize Suite' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $AppExe }
 if ($current -and $target -eq $current -and -not $bad.Count) {
-  if ($heldTarget) { Ok "Creatorize Suite $current is complete. $heldTarget didn't pass its test on this computer, so it wasn't installed; a newer version is tested again by itself." }
+  if ($Want) { Ok "Creatorize Suite $current is installed and complete (every file checked; the update you asked for is $Want)" }
+  elseif ($heldTarget) { Ok "Creatorize Suite $current is complete. $heldTarget didn't pass its test on this computer, so it wasn't installed; a newer version is tested again by itself." }
   elseif ($null -ne $paused) { Ok "Creatorize Suite $current is complete. Updates are paused (you went back to it in the Creatorize Launcher): press Resume updates there to get newer versions." }
   elseif ($latest -and (Cmp-Ver $current $latest.version) -gt 0) { Ok "Creatorize Suite $current is installed (a test version, newer than $($latest.version)) and complete" }
   elseif ($Keep) { Ok "Creatorize Suite $current is complete (every file checked)" }
@@ -585,7 +603,7 @@ if ($current -and $target -eq $current -and -not $bad.Count) {
 } else {
   $what = if (-not $current) { "install Creatorize Suite $target" } elseif ($target -eq $current) { "put back the missing files of Creatorize Suite $current" } else { "update Creatorize Suite $current to $target" }
   if ($current -and $target -eq $current) { Warn "$($bad.Count) file(s) of Creatorize Suite $current are missing or changed ($(@($bad)[0..2] -join ', ')$(if ($bad.Count -gt 3) { ', ...' })): installing $current again" }
-  if ($null -ne $paused -and $target -eq $paused) { Note "Updates are paused (you went back to $paused in the Creatorize Launcher), so $paused it stays." }
+  if (-not $Want -and $null -ne $paused -and $target -eq $paused) { Note "Updates are paused (you went back to $paused in the Creatorize Launcher), so $paused it stays." }
   if ($running) {
     if ($env:CZ_FROM_LAUNCHER -and -not $OldLauncher) { Stop-Install "Creatorize Suite is open, so the launcher could not $what. Close Creatorize Suite and press Repair again." }
     Todo "Creatorize Suite $current is open, so the installer did not $what. Close it and run the installer again$(if ($target -ne $current) { ' (or it updates itself when you close it)' })."
