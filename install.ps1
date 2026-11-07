@@ -103,6 +103,17 @@ function Use-Proxy {
   }
   [Net.WebRequest]::DefaultWebProxy = $wp   # (also for Claude Code's own installer, which downloads by itself)
 }
+# a beta newer than this version (update.json on the public repo, what "Update Creatorize for me" installs); nothing when
+# there is none or it can't be read. This command itself only installs full releases.
+function Newer-Beta($have) {
+  try {
+    $c = (Invoke-WebRequest -Uri (Net-Url "https://raw.githubusercontent.com/$Owner/creatorize/main/update.json") -UseBasicParsing -TimeoutSec 8 @PX).Content
+    if ($c -is [byte[]]) { $c = [Text.Encoding]::UTF8.GetString($c) }
+    $v = [string]($c | ConvertFrom-Json).windows
+    if ($v -match '^\d+\.\d+\.\d+(-beta\.\d+)?$' -and (Cmp-Ver $v $have) -gt 0) { return $v }
+  } catch { }
+  return $null
+}
 function Web-Get($url) {
   $c = (Invoke-WebRequest -Uri (Net-Url $url) -UseBasicParsing @PX).Content
   if ($c -is [byte[]]) { $c = [Text.Encoding]::UTF8.GetString($c) }
@@ -598,7 +609,14 @@ if ($current -and $target -eq $current -and -not $bad.Count) {
   elseif ($null -ne $paused) { Ok "Creatorize Suite $current is complete. Updates are paused (you went back to it in the Creatorize Launcher): press Resume updates there to get newer versions." }
   elseif ($latest -and (Cmp-Ver $current $latest.version) -gt 0) { Ok "Creatorize Suite $current is installed (a test version, newer than $($latest.version)) and complete" }
   elseif ($Keep) { Ok "Creatorize Suite $current is complete (every file checked)" }
-  else { Ok "Creatorize Suite $current is up to date" }
+  else {
+    $newer = Newer-Beta $current
+    if ($newer) {
+      Ok "Creatorize Suite $current is the newest full release, and it is complete"
+      Note "A newer beta ($newer) is out. This command only installs full releases. To get the beta, paste this into Claude Code on this computer:"
+      Note "Update Creatorize for me: https://github.com/$Owner/creatorize"
+    } else { Ok "Creatorize Suite $current is up to date" }
+  }
   if (-not $inst.manifest) { Note '(this version has no list of its files, so only its main files were checked)' }
 } else {
   $what = if (-not $current) { "install Creatorize Suite $target" } elseif ($target -eq $current) { "put back the missing files of Creatorize Suite $current" } else { "update Creatorize Suite $current to $target" }

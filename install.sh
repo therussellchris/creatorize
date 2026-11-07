@@ -53,6 +53,13 @@ big_dl() {
   rm -f "$1"
   curl -fL --progress-bar --http1.1 --retry 4 --retry-delay 3 -o "$1" "$2"
 }
+# a beta newer than this version (update.json on the public repo, what "Update Creatorize for me" installs); nothing when
+# there is none or it can't be read. This command itself only installs full releases.
+newer_beta() {
+  NB=$(curl -fsSL --max-time 8 "https://raw.githubusercontent.com/$OWNER/creatorize/main/update.json" 2>/dev/null | sed -n 's/.*"mac"[[:space:]]*:[[:space:]]*"\([0-9][0-9A-Za-z.-]*\)".*/\1/p' | head -1) || true
+  if [ -n "$NB" ] && [ "$(vercmp "$NB" "$1")" = "1" ]; then printf '%s' "$NB"; fi
+  return 0
+}
 vercmp() {
   local a1 a2 a3 b1 b2 b3 pa="" pb="" x y i
   case "$1" in *-*) pa="${1#*-}" ;; esac
@@ -239,7 +246,14 @@ if [ -n "$CURRENT" ] && [ "$TARGET" = "$CURRENT" ] && [ "$NBAD" = 0 ]; then
   elif [ -n "$PAUSED" ]; then ok "Creatorize Suite $CURRENT is complete. Updates are paused (you went back to it in the Creatorize Launcher): press Resume updates there to get newer versions."
   elif [ -n "$LATEST" ] && [ "$(vercmp "$CURRENT" "$LATEST")" = "1" ]; then ok "Creatorize Suite $CURRENT is installed (a test version, newer than $LATEST) and complete"
   elif [ -n "$KEEP" ]; then ok "Creatorize Suite $CURRENT is complete (every file checked)"
-  else ok "Creatorize Suite $CURRENT is up to date"; fi
+  else
+    NEWER=$(newer_beta "$CURRENT")
+    if [ -n "$NEWER" ]; then
+      ok "Creatorize Suite $CURRENT is the newest full release, and it is complete"
+      note "A newer beta ($NEWER) is out. This command only installs full releases. To get the beta, paste this into Claude Code on this Mac:"
+      note "Update Creatorize for me: https://github.com/$OWNER/creatorize"
+    else ok "Creatorize Suite $CURRENT is up to date"; fi
+  fi
   [ -z "$NOLIST" ] || note "(this version has no list of its files, so only its main files were checked)"
 else
   if [ -z "$CURRENT" ]; then WHAT="install Creatorize Suite $TARGET"
