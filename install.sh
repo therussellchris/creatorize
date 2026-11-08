@@ -18,7 +18,7 @@ MAC_REPO="creatorize-suite-mac-releases"
 APP="/Applications/Creatorize Suite.app"
 SUPPORT="$HOME/Library/Application Support/Creatorize Suite"
 VENV="$SUPPORT/python"
-PY_PACKAGES="numpy scipy pillow stable-ts"
+PY_PACKAGES="numpy scipy pillow opencv-python-headless stable-ts"
 WIN_CMD="irm https://raw.githubusercontent.com/$OWNER/creatorize/main/install.ps1 | iex"
 # CZ_INSTALL_KEEP=installed (the launcher's Repair): repair the version that is installed, never update it
 KEEP=""; [ "${CZ_INSTALL_KEEP:-}" = "installed" ] && KEEP=1
@@ -147,7 +147,7 @@ fi
 pkgs_missing() {
   "$VENV/bin/python3" - <<'PY'
 import importlib.util as u
-want = {"numpy": "numpy", "scipy": "scipy", "PIL": "pillow", "stable_whisper": "stable-ts"}
+want = {"numpy": "numpy", "scipy": "scipy", "PIL": "pillow", "cv2": "opencv-python-headless", "stable_whisper": "stable-ts"}
 print(" ".join(p for m, p in want.items() if u.find_spec(m) is None))
 PY
 }

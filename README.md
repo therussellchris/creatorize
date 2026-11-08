@@ -100,7 +100,7 @@ Anything you already have is skipped.
 | Package manager | winget (built into Windows) | Homebrew |
 | git (edit history, so every change can be undone) | ✓ | ✓ |
 | ffmpeg (export with sound) | ✓ | ✓ |
-| Python 3 + numpy, scipy, pillow, stable-ts (audio pipeline) | ✓ | ✓ (in the app's own Python environment) |
+| Python 3 + numpy, scipy, pillow, stable-ts (audio pipeline), opencv-python-headless (3D Documentary cut-outs and maps) | ✓ | ✓ (in the app's own Python environment) |
 | The app's own ffmpeg + Python 3.12 (the app downloads and checks them itself the first time it runs) | ✓ | ✓ |
 | Node.js (renders the animated intros Claude edits) | ✓ | ✓ |
 | Claude Code (the AI that edits your videos, using your Claude plan) | ✓ | ✓ |

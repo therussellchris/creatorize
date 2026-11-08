@@ -251,7 +251,7 @@ function Install-VC {
 # (the program's path as UTF-8 hex: through a pipe Python writes the ANSI code page and PowerShell reads the OEM one, so
 # a user name like Jose with an accent would come back garbled and be written into the app's settings)
 $PyProbe = "import sys, struct, os, binascii`nprint('CZPY %d.%d %d %s %s' % (sys.version_info[0], sys.version_info[1], struct.calcsize('P') * 8, 'conda' if os.path.exists(os.path.join(sys.prefix, 'conda-meta')) else 'ok', binascii.hexlify(sys.executable.encode('utf-8')).decode('ascii')))"
-$PkgCheck = "import importlib.util as u`nw = {'numpy': 'numpy', 'scipy': 'scipy', 'PIL': 'pillow', 'stable_whisper': 'stable-ts'}`nprint('CZPKG ' + ' '.join(p for m, p in w.items() if u.find_spec(m) is None))"
+$PkgCheck = "import importlib.util as u`nw = {'numpy': 'numpy', 'scipy': 'scipy', 'PIL': 'pillow', 'cv2': 'opencv-python-headless', 'stable_whisper': 'stable-ts'}`nprint('CZPKG ' + ' '.join(p for m, p in w.items() if u.find_spec(m) is None))"
 $TorchCheck = "try:`n    import torch`n    print('CZTORCH ok ' + torch.__version__)`nexcept Exception as e:`n    print('CZTORCH fail ' + repr(e))"
 # a script through stdin (PowerShell 5.1 mangles double quotes in arguments to native programs); its lines as text
 function Py-Run($exe, [string[]]$pre, $code, [switch]$All) {
@@ -519,7 +519,7 @@ if (Find-Cmd 'node') { Ok 'Node.js already installed' } else { Install-Winget 'O
 Step 'Python packages for the audio pipeline'
 if ($py) {
   $missing = Missing-Pkgs $py
-  if ($null -eq $missing) { Warn "$py could not check its packages: installing all of them"; $missing = 'numpy scipy pillow stable-ts' }
+  if ($null -eq $missing) { Warn "$py could not check its packages: installing all of them"; $missing = 'numpy scipy pillow opencv-python-headless stable-ts' }
   if (-not $missing) { Ok 'Python packages already installed' }
   elseif ($DryRun) { Note "(test mode) would install: $missing" }
   else {
