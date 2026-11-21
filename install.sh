@@ -1,6 +1,6 @@
 #!/bin/bash
 # Creatorize Suite installer for macOS: everything the app needs, then the app itself.
-#   curl -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/install.sh | bash
+#   curl -fsSL https://get.creatorize.io/install.sh | bash
 # Safe to run again: it skips what is already there, updates Creatorize Suite if a newer version is out, and repairs
 # anything missing. Source: installer/install.sh in the Creatorize Suite code repo (published by scripts/publish-installer.mjs,
 # after scripts/installer-test/run.mjs passed on exactly the files it publishes).
@@ -15,11 +15,18 @@ main() {
 
 OWNER="therussellchris"
 MAC_REPO="creatorize-suite-mac-releases"
-APP="/Applications/Creatorize Suite.app"
+# (tests only, CZ_TEST_APPS_DIR: the folder the app and the launcher go into instead of /Applications: the release proof's
+# isolated Mac account, scripts/installer-test/isolated.mjs, on a Mac whose own copies must stay untouched)
+APPS="${CZ_TEST_APPS_DIR:-/Applications}"
+APP="$APPS/Creatorize Suite.app"
 SUPPORT="$HOME/Library/Application Support/Creatorize Suite"
 VENV="$SUPPORT/python"
 PY_PACKAGES="numpy scipy pillow opencv-python-headless stable-ts"
-WIN_CMD="irm https://raw.githubusercontent.com/$OWNER/creatorize/main/install.ps1 | iex"
+# Creatorize's own download server (get.creatorize.io, laid out like the GitHub repos it replaces) first; the same file
+# on GitHub only when it gives no answer, while GitHub is the fallback (it goes when the public repos close)
+CF="https://get.creatorize.io"
+GH_FALLBACK=1
+WIN_CMD="irm $CF/install.ps1 | iex"
 # CZ_INSTALL_KEEP=installed (the launcher's Repair): repair the version that is installed, never update it
 KEEP=""; [ "${CZ_INSTALL_KEEP:-}" = "installed" ] && KEEP=1
 # CZ_INSTALL_VERSION=x.y.z ("Update Creatorize for me", AGENTS.md section 13, which reads the number from update.json):
@@ -53,10 +60,49 @@ big_dl() {
   rm -f "$1"
   curl -fL --progress-bar --http1.1 --retry 4 --retry-delay 3 -o "$1" "$2"
 }
-# a beta newer than this version (update.json on the public repo, what "Update Creatorize for me" installs); nothing when
-# there is none or it can't be read. This command itself only installs full releases.
+# a file of ours on GitHub: <repo>/raw/<f> -> the repo's own file, anything else (<repo>/releases/...) -> github.com
+gh_url() {
+  case "$1" in
+    */raw/*) printf 'https://raw.githubusercontent.com/%s/%s/main/%s' "$OWNER" "${1%%/raw/*}" "${1#*/raw/}" ;;
+    *) printf 'https://github.com/%s/%s' "$OWNER" "$1" ;;
+  esac
+}
+# a small file of ours (update.json, launcher.json, a release's update-manifest.json) to stdout: the download server's,
+# else GitHub's; fails when neither sends it
+cf_text() {
+  local t
+  if t=$(curl -fsSL --max-time 20 "$CF/$1" 2>/dev/null); then printf '%s\n' "$t"; return 0; fi
+  [ -n "$GH_FALLBACK" ] || return 1
+  t=$(curl -fsSL --max-time 20 "$(gh_url "$1")" 2>/dev/null) || return 1
+  printf '%s\n' "$t"
+}
+# the address of a release file that is there: the download server's, else GitHub's; nothing when neither has it
+cf_find() {
+  if curl -fsSLI -o /dev/null --max-time 20 "$CF/$1" 2>/dev/null; then printf '%s' "$CF/$1"
+  elif [ -n "$GH_FALLBACK" ] && curl -fsSLI -o /dev/null --max-time 20 "$(gh_url "$1")" 2>/dev/null; then gh_url "$1"; fi
+  return 0
+}
+# from a release's update-manifest.json (the update gate's list of its files): its version, or one file's sha256
+mf_version() { printf '%s\n' "$1" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([0-9][0-9A-Za-z.-]*\)".*/\1/p' | head -1 || true; }
+mf_sha() {
+  local n; n=$(printf '%s' "$2" | sed 's/[.]/[.]/g')
+  printf '%s' "$1" | tr -d '\n\r' | sed -n "s/.*\"$n\"[[:space:]]*:[[:space:]]*{[^}]*\"sha256\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" | head -1 || true
+}
+# the newest full release of the Mac app: the version in its "latest" update-manifest.json (download server, else
+# GitHub), else github.com's own "latest release" redirect (not the API, which allows 60 requests an hour per network)
+latest_version() {
+  local v u
+  v=$(mf_version "$(cf_text "$MAC_REPO/releases/latest/download/update-manifest.json" || true)")
+  if [ -z "$v" ] && [ -n "$GH_FALLBACK" ]; then
+    u=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$(gh_url "$MAC_REPO/releases/latest")" 2>/dev/null || true)
+    case "$u" in */releases/tag/v*) v="${u##*/tag/v}" ;; esac
+  fi
+  printf '%s' "$v"
+}
+# a beta newer than this version (update.json, what "Update Creatorize for me" installs); nothing when there is none or
+# it can't be read. This command itself only installs full releases.
 newer_beta() {
-  NB=$(curl -fsSL --max-time 8 "https://raw.githubusercontent.com/$OWNER/creatorize/main/update.json" 2>/dev/null | sed -n 's/.*"mac"[[:space:]]*:[[:space:]]*"\([0-9][0-9A-Za-z.-]*\)".*/\1/p' | head -1) || true
+  NB=$(cf_text "creatorize/raw/update.json" 2>/dev/null | sed -n 's/.*"mac"[[:space:]]*:[[:space:]]*"\([0-9][0-9A-Za-z.-]*\)".*/\1/p' | head -1) || true
   if [ -n "$NB" ] && [ "$(vercmp "$NB" "$1")" = "1" ]; then printf '%s' "$NB"; fi
   return 0
 }
@@ -103,7 +149,7 @@ BREW=""
 for b in "$(command -v brew 2>/dev/null || true)" /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -n "$b" ] && [ -x "$b" ] && { BREW="$b"; break; }; done
 if [ -z "$BREW" ]; then
   # run by the launcher's Repair: no Terminal to type the password into
-  [ -z "${CZ_NO_TTY:-}" ] || die "Homebrew is missing, and installing it needs your Mac password once. Open Terminal and run: curl -fsSL https://raw.githubusercontent.com/$OWNER/creatorize/main/install.sh | bash"
+  [ -z "${CZ_NO_TTY:-}" ] || die "Homebrew is missing, and installing it needs your Mac password once. Open Terminal and run: curl -fsSL $CF/install.sh | bash"
   note "Installing Homebrew. macOS asks for your Mac login password once (typing shows nothing, that's normal)."
   sudo -v < /dev/tty || die "the password was not accepted. Run the installer again."
   ( while true; do sudo -n true; sleep 50; kill -0 "$$" 2>/dev/null || exit; done ) 2>/dev/null &
@@ -181,7 +227,6 @@ fi
 # every file checked against the app's own list (files.json); anything missing = that exact version copied in again ----
 step "Creatorize Suite"
 if [ -n "${CZ_SKIP_APP:-}" ]; then note "(test: CZ_SKIP_APP set, app step skipped)"; else
-RELEASES="https://github.com/$OWNER/$MAC_REPO/releases"
 CURRENT=""
 [ -d "$APP" ] && CURRENT=$(defaults read "$APP/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)
 # files of an app that are missing or not at their size (the same check as the launcher's, releases.ts verifyBundle);
@@ -223,17 +268,15 @@ if [ -n "$WANT" ]; then
 elif [ -n "$CURRENT" ] && { [ -n "$KEEP" ] || [ -n "$PAUSED" ]; }; then TARGET="$CURRENT"
 elif [ -z "$CURRENT" ] && [ -n "$PAUSED" ] && [ "$PAUSED" != "?" ]; then TARGET="$PAUSED"
 else
-  # github.com's own "latest release" redirect, not the API (which allows 60 requests an hour per network)
-  LATEST_URL=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$RELEASES/latest" 2>/dev/null || true)
-  case "$LATEST_URL" in
-    */releases/tag/v*) LATEST="${LATEST_URL##*/tag/v}" ;;
-    *) if curl -fsSI -o /dev/null https://github.com 2>/dev/null; then
-         warn "The Mac version of Creatorize Suite isn't published yet. Everything it needs is installed now: run this command again once it's out."
-         if [ "$NLEFT" -gt 0 ]; then printf '\n%s' "$LEFT"; [ -n "$OLD_LAUNCHER" ] || exit 3; fi
-         exit 0
-       fi
-       die "could not reach GitHub ($RELEASES). Check your internet connection and run the installer again." ;;
-  esac
+  LATEST=$(latest_version)
+  if [ -z "$LATEST" ]; then
+    if curl -fsSI -o /dev/null --max-time 20 "$CF/update.json" 2>/dev/null || { [ -n "$GH_FALLBACK" ] && curl -fsSI -o /dev/null --max-time 20 https://github.com 2>/dev/null; }; then
+      warn "The Mac version of Creatorize Suite isn't published yet. Everything it needs is installed now: run this command again once it's out."
+      if [ "$NLEFT" -gt 0 ]; then printf '\n%s' "$LEFT"; [ -n "$OLD_LAUNCHER" ] || exit 3; fi
+      exit 0
+    fi
+    die "could not reach Creatorize's download server ($CF). Check your internet connection and run the installer again."
+  fi
   TARGET="$LATEST"
   if [ -n "$CURRENT" ] && [ "$(vercmp "$CURRENT" "$LATEST")" != "-1" ]; then TARGET="$CURRENT"; fi
   # a version the update gate tested on this Mac and did not install (the app's updates/held.json): a re-run of this
@@ -251,7 +294,7 @@ if [ -n "$CURRENT" ] && [ "$TARGET" = "$CURRENT" ] && [ "$NBAD" = 0 ]; then
     if [ -n "$NEWER" ]; then
       ok "Creatorize Suite $CURRENT is the newest full release, and it is complete"
       note "A newer beta ($NEWER) is out. This command only installs full releases. To get the beta, paste this into Claude Code on this Mac:"
-      note "Update Creatorize for me: https://github.com/$OWNER/creatorize"
+      note "Update Creatorize for me: $CF/AGENTS.md"
     else ok "Creatorize Suite $CURRENT is up to date"; fi
   fi
   [ -z "$NOLIST" ] || note "(this version has no list of its files, so only its main files were checked)"
@@ -264,18 +307,32 @@ else
     [ -z "${CZ_FROM_LAUNCHER:-}" ] || [ -n "$OLD_LAUNCHER" ] || die "Creatorize Suite is open, so the launcher could not $WHAT. Quit Creatorize Suite (Cmd+Q) and press Repair again."
     todo "Creatorize Suite $CURRENT is open, so the installer did not $WHAT. Quit it (Cmd+Q) and run the installer again."
   else
-  URL="$RELEASES/download/v$TARGET/Creatorize-Suite-$TARGET-Mac-$CHIP.dmg"   # name set in .github/workflows/mac-build.yml
-  if [ -n "$KEEP" ] && [ -z "$PAUSED" ] && ! curl -fsSLI -o /dev/null "$URL" 2>/dev/null; then
+  DMG="Creatorize-Suite-$TARGET-Mac-$CHIP.dmg"   # name set in .github/workflows/mac-build.yml
+  URL=$(cf_find "$MAC_REPO/releases/download/v$TARGET/$DMG")
+  if [ -n "$KEEP" ] && [ -z "$PAUSED" ] && [ -z "$URL" ]; then
     # the launcher's Repair, and this version is no longer published (pulled): the newest one instead
-    LATEST_URL=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$RELEASES/latest" 2>/dev/null || true)
-    case "$LATEST_URL" in */releases/tag/v*) warn "Creatorize Suite $TARGET is not published any more: installing the newest version instead"; TARGET="${LATEST_URL##*/tag/v}"; URL="$RELEASES/download/v$TARGET/Creatorize-Suite-$TARGET-Mac-$CHIP.dmg" ;; esac
+    NEWEST=$(latest_version)
+    if [ -n "$NEWEST" ]; then
+      warn "Creatorize Suite $TARGET is not published any more: installing the newest version instead"
+      TARGET="$NEWEST"; DMG="Creatorize-Suite-$TARGET-Mac-$CHIP.dmg"; URL=$(cf_find "$MAC_REPO/releases/download/v$TARGET/$DMG")
+    fi
     # (never a version the update gate held on this Mac, here either: Fable review 2, pass 3, P3-2)
     if is_held "$TARGET"; then todo "the newest version, $TARGET, didn't pass its test on this Mac, so it wasn't installed; Creatorize Suite $CURRENT stays as it is. A newer version is tested again by itself."; printf '\n%s' "$LEFT"; [ -n "$OLD_LAUNCHER" ] || exit 3; exit 0; fi
   fi
+  [ -n "$URL" ] || URL="$CF/$MAC_REPO/releases/download/v$TARGET/$DMG"
+  # its sha256 from the release's update-manifest.json (a release from before it: the .dmg's own checksums only)
+  WANT_SHA=$(mf_sha "$(cf_text "$MAC_REPO/releases/download/v$TARGET/update-manifest.json" || true)" "$DMG")
   note "Downloading Creatorize Suite $TARGET ..."
   TMP=$(mktemp -d); trap 'hdiutil detach -quiet "$TMP/mnt" >/dev/null 2>&1 || true; rm -rf "$TMP"' EXIT
-  big_dl "$TMP/suite.dmg" "$URL" || die "the download failed ($URL). Nothing was changed: check the internet connection and run the installer again."
-  # (a .dmg carries its own checksums: one damaged on the way does not open)
+  if ! big_dl "$TMP/suite.dmg" "$URL"; then
+    # (the download server stopped sending it: GitHub's copy, while GitHub is the fallback)
+    case "$URL" in "$CF"/*) [ -n "$GH_FALLBACK" ] && rm -f "$TMP/suite.dmg" && note "Trying GitHub instead ..." && URL=$(gh_url "$MAC_REPO/releases/download/v$TARGET/$DMG") && big_dl "$TMP/suite.dmg" "$URL" ;; *) false ;; esac \
+      || die "the download failed ($URL). Nothing was changed: check the internet connection and run the installer again."
+  fi
+  if [ -n "$WANT_SHA" ] && [ "$(shasum -a 256 "$TMP/suite.dmg" | cut -d' ' -f1)" != "$WANT_SHA" ]; then
+    die "the download of Creatorize Suite $TARGET was damaged on the way (it did not match the release), so it was not opened. Nothing was changed: run the installer again; if this shows again, something on this Mac or network changes downloads (a proxy or web filter): pause it for a moment."
+  fi
+  # (a .dmg carries its own checksums too: one damaged on the way does not open)
   hdiutil attach -quiet -nobrowse -readonly -mountpoint "$TMP/mnt" "$TMP/suite.dmg" || die "the download of Creatorize Suite $TARGET was damaged on the way (it does not open). Nothing was changed: run the installer again."
   [ -d "$TMP/mnt/Creatorize Suite.app" ] || die "the installer does not contain Creatorize Suite.app."
   # copied next to the app first, checked, then swapped: a half copy (or a leftover .new from an update that stopped)
@@ -305,11 +362,13 @@ fi
 
 # ---- Creatorize Launcher: watches every start and fixes a window that doesn't show; updates, goes back, repairs ----
 step "Creatorize Launcher"
-LAPP="/Applications/Creatorize Launcher.app"
+LAPP="$APPS/Creatorize Launcher.app"
+# a launcher open anywhere (also one macOS runs from a translocated copy); the test folder: only the one in it
+LRUN="Creatorize Launcher.app/Contents/MacOS"; [ -z "${CZ_TEST_APPS_DIR:-}" ] || LRUN="$LAPP/Contents/MacOS"
 if [ -n "${CZ_FROM_LAUNCHER:-}" ]; then ok "the launcher is running this repair, so it stays as it is"
 elif [ -n "${CZ_SKIP_APP:-}" ]; then note "(test: CZ_SKIP_APP set, launcher step skipped)"
 else
-  LJ=$(curl -fsSL "https://github.com/$OWNER/creatorize/releases/latest/download/launcher.json" 2>/dev/null || true)
+  LJ=$(cf_text "creatorize/releases/latest/download/launcher.json" || true)
   LVER=$(printf '%s\n' "$LJ" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -1)
   if [ "$CHIP" = "arm64" ]; then LKEY="macArm64"; else LKEY="macX64"; fi
   LZIP=$(printf '%s\n' "$LJ" | sed -n "s/.*\"$LKEY\": *\"\\([^\"]*\\)\".*/\\1/p" | head -1)
@@ -317,10 +376,11 @@ else
   if [ -z "$LVER" ] || [ -z "$LZIP" ]; then
     if [ -n "$LCUR" ]; then ok "Creatorize Launcher $LCUR is installed"; else note "not published yet: Creatorize Suite installs it by itself later"; fi
   elif [ "$LCUR" = "$LVER" ]; then ok "Creatorize Launcher $LCUR is up to date"
-  elif pgrep -fq "Creatorize Launcher.app/Contents/MacOS"; then warn "the launcher is open, so it was not updated: it updates itself later"   # (-x matches only 16 characters of a name)
+  elif pgrep -fq "$LRUN"; then warn "the launcher is open, so it was not updated: it updates itself later"   # (-x matches only 16 characters of a name)
   else
     LTMP=$(mktemp -d)
-    if big_dl "$LTMP/l.zip" "https://github.com/$OWNER/creatorize/releases/latest/download/$LZIP" && ditto -x -k "$LTMP/l.zip" "$LTMP/x" && [ -d "$LTMP/x/Creatorize Launcher.app" ]; then
+    LURL=$(cf_find "creatorize/releases/latest/download/$LZIP")
+    if [ -n "$LURL" ] && big_dl "$LTMP/l.zip" "$LURL" && ditto -x -k "$LTMP/l.zip" "$LTMP/x" && [ -d "$LTMP/x/Creatorize Launcher.app" ]; then
       # copied next to the old one first, checked, then swapped (the same way as the app above and the launcher's own
       # update, src/shared/bundleSwap.ts): a copy that fails or is cut off never leaves the member without a launcher
       LNEW="$LAPP.new"; LOLD="$LAPP.trash-$$"

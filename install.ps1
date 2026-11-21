@@ -1,5 +1,5 @@
 # Creatorize Suite installer for Windows: everything the app needs, then the app itself.
-#   irm https://raw.githubusercontent.com/therussellchris/creatorize/main/install.ps1 | iex
+#   irm https://get.creatorize.io/install.ps1 | iex
 # Safe to run again: it skips what is already there, updates Creatorize Suite if a newer version is out, and repairs
 # anything missing. Source: installer/install.ps1 in the Creatorize Suite code repo (published by scripts/publish-installer.mjs,
 # after scripts/installer-test/run.mjs passed on exactly the files it publishes).
@@ -16,10 +16,14 @@ $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is many times slo
 
 $Owner = 'therussellchris'
 $Repo = 'creatorize-suite-releases'
+# Creatorize's own download server (get.creatorize.io, laid out like the GitHub repos it replaces) first; the same file on
+# GitHub only when it gives no answer, while GitHub is the fallback (it goes when the public repos close)
+$CzHost = 'https://get.creatorize.io'
+$GhFallback = $true
 $AppDir = Join-Path $env:LOCALAPPDATA 'Programs\creatorize-suite'
 $AppExe = Join-Path $AppDir 'Creatorize Suite.exe'
 $AppConfig = Join-Path $env:APPDATA 'Creatorize Suite\config.json'
-$MacCmd = "curl -fsSL https://raw.githubusercontent.com/$Owner/creatorize/main/install.sh | bash"
+$MacCmd = "curl -fsSL $CzHost/install.sh | bash"
 $DryRun = [bool]$env:CZ_INSTALL_DRY    # test mode: detect and report, change nothing
 # CZ_INSTALL_KEEP=installed (the launcher's Repair): repair the version that is installed (every file checked, that exact
 # version installed again when one is missing or changed), never update it; the launcher has its own Update
@@ -103,15 +107,24 @@ function Use-Proxy {
   }
   [Net.WebRequest]::DefaultWebProxy = $wp   # (also for Claude Code's own installer, which downloads by itself)
 }
-# a beta newer than this version (update.json on the public repo, what "Update Creatorize for me" installs); nothing when
-# there is none or it can't be read. This command itself only installs full releases.
+# a file of ours, as addresses to try in order: the download server's, then (while GitHub is the fallback) GitHub's.
+# $p: <repo>/releases/... (github.com/<owner>/<repo>/releases/...) or <repo>/raw/<file> (the repo's own file)
+function Cf-Urls($p) {
+  $u = @("$CzHost/$p")
+  if ($GhFallback) { if ($p -match '^([\w.-]+)/raw/(.+)$') { $u += "https://raw.githubusercontent.com/$Owner/$($Matches[1])/main/$($Matches[2])" } else { $u += "https://github.com/$Owner/$p" } }
+  return ,$u
+}
+# a beta newer than this version (update.json, what "Update Creatorize for me" installs); nothing when there is none or
+# it can't be read. This command itself only installs full releases.
 function Newer-Beta($have) {
-  try {
-    $c = (Invoke-WebRequest -Uri (Net-Url "https://raw.githubusercontent.com/$Owner/creatorize/main/update.json") -UseBasicParsing -TimeoutSec 8 @PX).Content
-    if ($c -is [byte[]]) { $c = [Text.Encoding]::UTF8.GetString($c) }
-    $v = [string]($c | ConvertFrom-Json).windows
-    if ($v -match '^\d+\.\d+\.\d+(-beta\.\d+)?$' -and (Cmp-Ver $v $have) -gt 0) { return $v }
-  } catch { }
+  foreach ($u in (Cf-Urls 'creatorize/raw/update.json')) {
+    try {
+      $c = (Invoke-WebRequest -Uri (Net-Url $u) -UseBasicParsing -TimeoutSec 8 @PX).Content
+      if ($c -is [byte[]]) { $c = [Text.Encoding]::UTF8.GetString($c) }
+      $v = [string]($c | ConvertFrom-Json).windows
+      if ($v -match '^\d+\.\d+\.\d+(-beta\.\d+)?$') { if ((Cmp-Ver $v $have) -gt 0) { return $v } else { return $null } }
+    } catch { }
+  }
   return $null
 }
 function Web-Get($url) {
@@ -393,12 +406,15 @@ function Paused-Version {
   return $null
 }
 function Release-Info($v) {
-  # a release's own update file (not the GitHub API, which allows 60 requests an hour per network): version, Setup, sha512
-  $urls = if ($v) { @("https://github.com/$Owner/$Repo/releases/download/v$v/latest.yml", "https://github.com/$Owner/$Repo/releases/download/v$v/beta.yml") } else { @("https://github.com/$Owner/$Repo/releases/latest/download/latest.yml") }
-  foreach ($u in $urls) {
-    try { $yml = Web-Get $u } catch { continue }
+  # a release's own update file (not a release list): version, Setup, sha512. The download server first, then GitHub's
+  # copy (a server that gave no usable file: offline, a 404, a web page); .base = where its Setup is downloaded from
+  $paths = if ($v) { @("$Repo/releases/download/v$v/latest.yml", "$Repo/releases/download/v$v/beta.yml") } else { @("$Repo/releases/latest/download/latest.yml") }
+  $tries = @(); foreach ($p in $paths) { $tries += ,@($p, "$CzHost/$p") }
+  if ($GhFallback) { foreach ($p in $paths) { $tries += ,@($p, "https://github.com/$Owner/$p") } }
+  foreach ($t in $tries) {
+    try { $yml = Web-Get $t[1] } catch { continue }
     $r = @{ version = [regex]::Match($yml, '(?m)^version:\s*(\S+)').Groups[1].Value; file = [regex]::Match($yml, '(?m)^path:\s*(\S+)').Groups[1].Value; sha512 = [regex]::Match($yml, '(?m)^sha512:\s*(\S+)').Groups[1].Value }
-    if ($r.version -and $r.file) { return $r }
+    if ($r.version -and $r.file) { $r.base = $t[1].Substring(0, $t[1].Length - $t[0].Length) -replace '/$', ''; return $r }
   }
   return $null
 }
@@ -411,8 +427,15 @@ function Install-Suite($rel, $was) {
   $setup = Join-Path $dl $rel.file
   try {
     Note "Downloading Creatorize Suite $v ..."
-    try { Web-File "https://github.com/$Owner/$Repo/releases/download/v$v/$($rel.file)" $setup }
-    catch { Stop-Install "the download of Creatorize Suite $v failed ($($_.Exception.Message)). Nothing was changed. Check the internet connection and run the installer again." }
+    # from where its update file came (the download server, or GitHub's copy); the download server's failing: GitHub's
+    $from = @("$($rel.base)/$Repo/releases/download/v$v/$($rel.file)")
+    if ($GhFallback -and $rel.base -eq $CzHost) { $from += "https://github.com/$Owner/$Repo/releases/download/v$v/$($rel.file)" }
+    $err = $null
+    foreach ($u in $from) {
+      try { Web-File $u $setup; $err = $null; break }
+      catch { $err = $_.Exception.Message; if ($u -ne $from[-1]) { Note 'The download server did not send it: trying GitHub instead ...' } }
+    }
+    if ($err) { Stop-Install "the download of Creatorize Suite $v failed ($err). Nothing was changed. Check the internet connection and run the installer again." }
     # the download must be exactly the release's file (its sha512 in the release's update file)
     if ($rel.sha512) {
       $h512 = [Security.Cryptography.SHA512]::Create(); $s = [IO.File]::OpenRead($setup)
@@ -596,7 +619,7 @@ elseif ($current -and ($Keep -or $null -ne $paused)) { $target = $current }
 elseif (-not $current -and $paused) { $target = $paused }
 else {
   $latest = Release-Info $null
-  if (-not $latest) { Stop-Install "could not reach the Creatorize Suite releases (https://github.com/$Owner/$Repo/releases). Check the internet connection and run the installer again." }
+  if (-not $latest) { Stop-Install "could not reach the Creatorize Suite releases ($CzHost). Check the internet connection and run the installer again." }
   $target = if ($current -and (Cmp-Ver $current $latest.version) -ge 0) { $current } else { $latest.version }
   # a version the update gate tested on this computer and did not install (the app's updates\held.json): a re-run of
   # this installer or Repair keeps the installed one instead of installing it untested (Fable review 2, P2-1)
@@ -614,7 +637,7 @@ if ($current -and $target -eq $current -and -not $bad.Count) {
     if ($newer) {
       Ok "Creatorize Suite $current is the newest full release, and it is complete"
       Note "A newer beta ($newer) is out. This command only installs full releases. To get the beta, paste this into Claude Code on this computer:"
-      Note "Update Creatorize for me: https://github.com/$Owner/creatorize"
+      Note "Update Creatorize for me: $CzHost/AGENTS.md"
     } else { Ok "Creatorize Suite $current is up to date" }
   }
   if (-not $inst.manifest) { Note '(this version has no list of its files, so only its main files were checked)' }
@@ -637,7 +660,7 @@ if ($current -and $target -eq $current -and -not $bad.Count) {
       if ($rel -and (Held-Versions) -contains $rel.version) { Todo "the newest version, $($rel.version), didn't pass its test on this computer, so it wasn't installed; Creatorize Suite $current stays as it is. A newer version is tested again by itself."; $rel = 'held' }
     }
     if ($rel -eq 'held') { }
-    elseif (-not $rel) { Stop-Install "could not find Creatorize Suite $target on https://github.com/$Owner/$Repo/releases. Check the internet connection and run the installer again." }
+    elseif (-not $rel) { Stop-Install "could not find Creatorize Suite $target on $CzHost. Check the internet connection and run the installer again." }
     else { Install-Suite $rel $current }
   }
 }
@@ -650,7 +673,10 @@ if ($env:CZ_FROM_LAUNCHER) { Ok 'the launcher is running this repair, so it stay
 elseif ($env:CZ_SKIP_APP) { Note '(test: CZ_SKIP_APP set, launcher step skipped)' }
 else {
   $info = $null
-  try { $info = Web-Get "https://github.com/$Owner/creatorize/releases/latest/download/launcher.json" | ConvertFrom-Json } catch { $info = $null }
+  $info = $null; $lbase = $null
+  foreach ($u in (Cf-Urls 'creatorize/releases/latest/download/launcher.json')) {
+    try { $info = Web-Get $u | ConvertFrom-Json; if ($info.version) { $lbase = $u -replace '/launcher\.json$', ''; break } } catch { $info = $null }
+  }
   $have = $null
   if (Test-Path $LExe) { $have = (Get-Item $LExe).VersionInfo.ProductVersion }   # "1.0.0.0": Ver compares it as 1.0.0
   if (-not $info -or -not $info.windows) { if ($have) { Ok "Creatorize Launcher $have is installed" } else { Note 'not published yet: Creatorize Suite installs it by itself later' } }
@@ -663,7 +689,7 @@ else {
     $setup = Join-Path $dl $info.windows
     try {
       Note "Downloading Creatorize Launcher $($info.version) ..."
-      Web-File "https://github.com/$Owner/creatorize/releases/latest/download/$($info.windows)" $setup
+      Web-File "$lbase/$($info.windows)" $setup
       $p = Start-Process $setup -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden
       if ($p.ExitCode -eq 0 -and (Test-Path $LExe)) { Ok "Creatorize Launcher $($info.version) installed (Start menu: Creatorize Launcher)" } else { Warn "the launcher did not install (code $($p.ExitCode)); Creatorize Suite tries again by itself later" }
     } catch { Warn "the launcher did not install ($_); Creatorize Suite tries again by itself later" }

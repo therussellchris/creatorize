@@ -1,9 +1,9 @@
 # Creatorize Suite rescue for Windows: for a Creatorize window that stays dark or empty (or won't open at all).
-#   irm https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.ps1 | iex
+#   irm https://get.creatorize.io/rescue.ps1 | iex
 # Closes Creatorize Suite, updates it if a newer version is out, then starts it in Safe display mode (3D previews and
 # exports still run on the graphics card, only the window is shown a safer way). Projects, settings and the Skool login
 # are not touched. Still dark after that? Run it with software graphics (slower, always shows):
-#   $env:CZ_RESCUE='software'; irm https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.ps1 | iex
+#   $env:CZ_RESCUE='software'; irm https://get.creatorize.io/rescue.ps1 | iex
 # Source: installer/rescue.ps1 in the Creatorize Suite code repo (published by scripts/publish-installer.mjs).
 # Keep this file plain ASCII: Windows PowerShell 5.1 runs it through `irm | iex`.
 
@@ -14,6 +14,9 @@ $ProgressPreference = 'SilentlyContinue'
 
 $Owner = 'therussellchris'
 $Repo = 'creatorize-suite-releases'
+# Creatorize's own download server first; the same file on GitHub only when it gives no answer, while GitHub is the fallback
+$CzHost = 'https://get.creatorize.io'
+$GhFallback = $true
 $AppDir = Join-Path $env:LOCALAPPDATA 'Programs\creatorize-suite'
 $AppExe = Join-Path $AppDir 'Creatorize Suite.exe'
 $DryRun = [bool]$env:CZ_INSTALL_DRY    # test mode: detect and report, change nothing
@@ -23,6 +26,16 @@ function Step($t) { Write-Host ''; Write-Host "==> $t" -ForegroundColor White }
 function Ok($t) { Write-Host "    [ok] $t" -ForegroundColor Green }
 function Note($t) { Write-Host "    $t" -ForegroundColor DarkGray }
 function Warn($t) { Write-Host "    [!] $t" -ForegroundColor Yellow }
+function Cf-Request($p, $out) {
+  # $p: a path on the download server (<repo>/releases/...); with $out the file is saved there, else its text comes back
+  $urls = @("$CzHost/$p"); if ($GhFallback) { $urls += "https://github.com/$Owner/$p" }
+  foreach ($u in $urls) {
+    try {
+      if ($out) { Invoke-WebRequest $u -OutFile $out -UseBasicParsing; return }
+      $c = (Invoke-WebRequest $u -UseBasicParsing).Content; if ($c -is [byte[]]) { $c = [Text.Encoding]::UTF8.GetString($c) }; return [string]$c
+    } catch { if ($u -eq $urls[-1]) { throw } }
+  }
+}
 function Ver($v) { try { [version](($v -replace '-.*$', '') -replace '\.0$', '') } catch { $null } }
 
 try {
@@ -31,7 +44,7 @@ Note 'Your projects, settings and Skool login stay as they are.'
 if ($DryRun) { Warn 'Test mode (CZ_INSTALL_DRY): nothing is closed, installed or changed.' }
 if (-not (Test-Path $AppExe) -and -not $DryRun) {
   Write-Host ''; Write-Host 'Creatorize Suite is not installed on this computer. Install it with:' -ForegroundColor Red
-  Write-Host "  irm https://raw.githubusercontent.com/$Owner/creatorize/main/install.ps1 | iex"; throw 'CZ_STOP'
+  Write-Host "  irm $CzHost/install.ps1 | iex"; throw 'CZ_STOP'
 }
 
 Step 'Closing Creatorize Suite'
@@ -48,10 +61,10 @@ Step 'Updating Creatorize Suite'
 $current = $null
 if (Test-Path $AppExe) { $current = ((Get-Item $AppExe).VersionInfo.ProductVersion -replace '\.0$', '') }
 try {
-  $yml = (Invoke-WebRequest "https://github.com/$Owner/$Repo/releases/latest/download/latest.yml" -UseBasicParsing).Content
-  if ($yml -is [byte[]]) { $yml = [Text.Encoding]::UTF8.GetString($yml) }
+  $yml = Cf-Request "$Repo/releases/latest/download/latest.yml"
   $latest = [regex]::Match($yml, '(?m)^version:\s*(\S+)').Groups[1].Value
   $file = [regex]::Match($yml, '(?m)^path:\s*(\S+)').Groups[1].Value
+  $sha512 = [regex]::Match($yml, '(?m)^sha512:\s*(\S+)').Groups[1].Value
 } catch { $latest = $null; Warn 'could not reach the Creatorize Suite releases, so it was not updated (it is started anyway)' }
 if ($latest -and $file) {
   if ($current -and (Ver $current) -ge (Ver $latest)) { Ok "Creatorize Suite $current is up to date" }
@@ -61,11 +74,15 @@ if ($latest -and $file) {
     New-Item -ItemType Directory -Force -Path $dl | Out-Null
     $setup = Join-Path $dl $file
     Note "Downloading Creatorize Suite $latest ..."
-    Invoke-WebRequest "https://github.com/$Owner/$Repo/releases/download/v$latest/$file" -OutFile $setup -UseBasicParsing
-    Note 'Installing ...'
-    $p = Start-Process $setup -ArgumentList '/S' -Wait -PassThru
+    Cf-Request "$Repo/releases/download/v$latest/$file" $setup
+    # the download must be exactly the release's file (its sha512 in latest.yml): anything else is never run
+    $got = $null
+    if ($sha512) { $h = [Security.Cryptography.SHA512]::Create(); $st = [IO.File]::OpenRead($setup); try { $got = [Convert]::ToBase64String($h.ComputeHash($st)) } finally { $st.Dispose() } }
+    if ($sha512 -and $got -ne $sha512) { Remove-Item $dl -Recurse -Force -ErrorAction SilentlyContinue; Warn 'the download was damaged on the way (it did not match the release), so it was not run; starting the installed version'; $p = $null }
+    else { Note 'Installing ...'; $p = Start-Process $setup -ArgumentList '/S' -Wait -PassThru }
     Remove-Item $dl -Recurse -Force -ErrorAction SilentlyContinue
-    if ($p.ExitCode -eq 0 -and (Test-Path $AppExe)) { $current = ((Get-Item $AppExe).VersionInfo.ProductVersion -replace '\.0$', ''); Ok "Creatorize Suite $current installed" }
+    if (-not $p) { }
+    elseif ($p.ExitCode -eq 0 -and (Test-Path $AppExe)) { $current = ((Get-Item $AppExe).VersionInfo.ProductVersion -replace '\.0$', ''); Ok "Creatorize Suite $current installed" }
     else { Warn "the update did not finish (code $($p.ExitCode)); starting the installed version" }
   }
 }
@@ -86,7 +103,7 @@ else {
 }
 Write-Host ''
 Write-Host 'Done. Still dark or empty after a minute? Close it and run this instead (slower graphics that always show):' -ForegroundColor White
-Write-Host "  `$env:CZ_RESCUE='software'; irm https://raw.githubusercontent.com/$Owner/creatorize/main/rescue.ps1 | iex"
+Write-Host "  `$env:CZ_RESCUE='software'; irm $CzHost/rescue.ps1 | iex"
 }
 catch { if ("$_" -ne 'CZ_STOP') { Write-Host ''; Write-Host "Rescue stopped: $_" -ForegroundColor Red } }
 }

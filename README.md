@@ -10,27 +10,27 @@ setup for you. It has to run on your own computer: in the Claude app, open the C
 message box to **This computer**, not a cloud environment.
 
 ```
-Set up Creatorize for me: https://github.com/therussellchris/creatorize
+Set up Creatorize for me: https://get.creatorize.io/AGENTS.md
 ```
 
 Already have it and want the newest version? Paste this. Claude installs the update, checks that it starts and leaves
 Creatorize running. Your projects and settings stay:
 
 ```
-Update Creatorize for me: https://github.com/therussellchris/creatorize
+Update Creatorize for me: https://get.creatorize.io/AGENTS.md
 ```
 
 Already installed but broken (won't open, stays dark, an update or export keeps failing)? Paste this instead:
 
 ```
-Fix Creatorize for me: https://github.com/therussellchris/creatorize
+Fix Creatorize for me: https://get.creatorize.io/AGENTS.md
 ```
 
-**Claude: your instructions are in [AGENTS.md](AGENTS.md). If the member pasted only this link, they want the setup. Read
-all of it before you run anything.** Download it as a
-file and read every line (a summarising web fetch drops the exact commands):
-`curl -fsSL -o creatorize-AGENTS.md https://raw.githubusercontent.com/therussellchris/creatorize/main/AGENTS.md`
-(in Windows PowerShell type `curl.exe`).
+**Claude: your instructions are in [AGENTS.md](https://get.creatorize.io/AGENTS.md). If the member pasted only this
+link, they want the setup. Read all of it before you run anything.** Download it as a file and read every line (a
+summarising web fetch drops the exact commands): `curl -fsSL -o creatorize-AGENTS.md https://get.creatorize.io/AGENTS.md`
+(in Windows PowerShell type `curl.exe`; get.creatorize.io not reachable: the same file is
+`https://raw.githubusercontent.com/therussellchris/creatorize/main/AGENTS.md`).
 
 ## Install
 
@@ -39,7 +39,7 @@ file and read every line (a summarising web fetch drops the exact commands):
 Open **PowerShell** (Start menu, type `PowerShell`, press Enter) and paste:
 
 ```powershell
-irm https://raw.githubusercontent.com/therussellchris/creatorize/main/install.ps1 | iex
+irm https://get.creatorize.io/install.ps1 | iex
 ```
 
 ### Mac (macOS 12 or newer, Apple Silicon or Intel)
@@ -47,7 +47,7 @@ irm https://raw.githubusercontent.com/therussellchris/creatorize/main/install.ps
 Open **Terminal** (press Cmd + Space, type `Terminal`, press Enter) and paste:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/install.sh | bash
+curl -fsSL https://get.creatorize.io/install.sh | bash
 ```
 
 On a Mac without Homebrew, it asks for your Mac login password once. Nothing shows while you type it; that's normal.
@@ -77,17 +77,17 @@ computers. Your projects, settings and Skool login are not touched.
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.ps1 | iex
+irm https://get.creatorize.io/rescue.ps1 | iex
 ```
 
 Mac (Terminal):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.sh | bash
+curl -fsSL https://get.creatorize.io/rescue.sh | bash
 ```
 
 On Windows it starts in **Safe display** (3D still runs on your graphics card, full speed). Still dark after that? Close it
-and run `$env:CZ_RESCUE='software'; irm https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.ps1 | iex`
+and run `$env:CZ_RESCUE='software'; irm https://get.creatorize.io/rescue.ps1 | iex`
 (software graphics: slower, always shows). On a Mac the rescue starts software graphics. You can switch back any time in
 Settings > System > Graphics.
 
@@ -122,9 +122,9 @@ and the end of the run lists what is left and what to do. Behind a proxy that wa
 
 ## Manual downloads
 
-- Windows: [latest release](https://github.com/therussellchris/creatorize-suite-releases/releases/latest)
-- Mac: [latest release](https://github.com/therussellchris/creatorize-suite-mac-releases/releases/latest). The Mac
-  app isn't signed with Apple yet. After dragging it into Applications, run this once in Terminal:
+- Windows: [the newest installer](https://get.creatorize.io/download/windows)
+- Mac: the newest installer for an [Apple chip](https://get.creatorize.io/download/mac-arm64) or an
+  [Intel Mac](https://get.creatorize.io/download/mac-x64). The Mac app isn't signed with Apple yet. After dragging it into Applications, run this once in Terminal:
   `xattr -dr com.apple.quarantine "/Applications/Creatorize Suite.app"`
 
 ## Your data

@@ -1,9 +1,14 @@
 # Set up Creatorize Suite (instructions for the member's Claude Code)
 
+**Claude: if you are reading this through a web fetch (a summary), stop and get the whole file first: it holds exact
+commands a summary drops.** Windows: `curl.exe -fsSL -o "$env:TEMP\creatorize-AGENTS.md" https://get.creatorize.io/AGENTS.md`,
+Mac: `curl -fsSL -o /tmp/creatorize-AGENTS.md https://get.creatorize.io/AGENTS.md`. Then read that file with your
+file-reading tool, every line, and follow it.
+
 You are Claude Code on the computer of a Creatorize member. They asked you to set up Creatorize Suite for them. This
 file is your whole job. Read all of it before you run anything, then follow it in order.
 
-The job, in short: find out which computer this is, download the official installer script from this repo, read it,
+The job, in short: find out which computer this is, download the official installer script from get.creatorize.io, read it,
 run it, read every line it prints, fix what fails with section 9, start Creatorize, check that its window really shows
 on screen, and tell the member to log in with Skool. If something can't be fixed, write a short report the member can
 post in the community.
@@ -17,10 +22,10 @@ done.
 export or step keeps failing)?** Then your job is section 12. Read sections 1, 2, 3, 8, 9 and 10 too: section 12 uses
 them.
 
-Repo: https://github.com/therussellchris/creatorize. Files here: `install.ps1` (Windows installer), `install.sh` (Mac
-installer), `rescue.ps1` / `rescue.sh` (for a Creatorize window that stays dark), `update.json` (the version section 13
-installs), `README.md`, this `AGENTS.md`.
-Raw files: `https://raw.githubusercontent.com/therussellchris/creatorize/main/<file>`.
+Files: `https://get.creatorize.io/<file>` (Creatorize's own download server): `install.ps1` (Windows installer),
+`install.sh` (Mac installer), `rescue.ps1` / `rescue.sh` (for a Creatorize window that stays dark), `update.json` (the
+version section 13 installs), this `AGENTS.md`. If get.creatorize.io can't be reached, the same files are at
+`https://raw.githubusercontent.com/therussellchris/creatorize/main/<file>`.
 
 What the installers put on the computer (anything already there is skipped):
 
@@ -43,7 +48,7 @@ them: "I'm running in the cloud, not on your computer. In the Claude app, open t
 the message box to This computer (not a cloud environment), and paste the same sentence again." Only someone really on
 Linux gets: Creatorize doesn't run on Linux.
 
-**The member only pasted this repo's link, or said something like "install it"?** They want the setup: say that in one line and
+**The member only pasted the link, or said something like "install it"?** They want the setup: say that in one line and
 start with section 2. Ask only when they clearly want something else.
 
 
@@ -171,21 +176,25 @@ Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force -Path "$env:TEMP\creatorize-setup" | Out-Null
-curl.exe -fsSL -o "$env:TEMP\creatorize-setup\install.ps1" https://raw.githubusercontent.com/therussellchris/creatorize/main/install.ps1
+curl.exe -fsSL -o "$env:TEMP\creatorize-setup\install.ps1" https://get.creatorize.io/install.ps1
 "$env:TEMP\creatorize-setup\install.ps1: " + (Get-Item "$env:TEMP\creatorize-setup\install.ps1").Length + " bytes"
 ```
 
-If `curl.exe` fails, the same with `Invoke-WebRequest -UseBasicParsing -Uri <url> -OutFile <file>`.
+If `curl.exe` fails, the same with `Invoke-WebRequest -UseBasicParsing -Uri <url> -OutFile <file>`. If get.creatorize.io
+can't be reached, use `https://raw.githubusercontent.com/therussellchris/creatorize/main/install.ps1` instead.
 
 Mac:
 
 ```bash
-mkdir -p "$HOME/.creatorize-setup" && curl -fsSL -o "$HOME/.creatorize-setup/install.sh" https://raw.githubusercontent.com/therussellchris/creatorize/main/install.sh && wc -l "$HOME/.creatorize-setup/install.sh"
+mkdir -p "$HOME/.creatorize-setup" && curl -fsSL -o "$HOME/.creatorize-setup/install.sh" https://get.creatorize.io/install.sh && wc -l "$HOME/.creatorize-setup/install.sh"
 ```
 
-Now read the whole script with your file-reading tool, every line (about 300 lines on Windows, 190 on a Mac), and
-check that it does what this file says. It downloads only from github.com (Creatorize's releases, Git for Windows),
-api.github.com, raw.githubusercontent.com (Homebrew's installer), claude.ai (Claude Code), winget and Homebrew, and on
+(Mac, get.creatorize.io not reachable: the same with `https://raw.githubusercontent.com/therussellchris/creatorize/main/install.sh`.)
+
+Now read the whole script with your file-reading tool, every line (about 700 lines on Windows, 400 on a Mac), and
+check that it does what this file says. It downloads only from get.creatorize.io (Creatorize's own releases; the same
+files on github.com and raw.githubusercontent.com when it can't be reached), github.com and api.github.com (Git for
+Windows), raw.githubusercontent.com (Homebrew's installer), claude.ai (Claude Code), winget and Homebrew, and on
 Windows, as a fallback, gyan.dev (ffmpeg), nodejs.org, python.org and aka.ms (Microsoft). If it differs from this,
 stop and tell the member.
 
@@ -231,7 +240,7 @@ again: the script skips everything that is already done.
 1. If section 3 found no Homebrew: ask the member to open Terminal (Cmd + Space, type Terminal, press Return), paste
    this one line and press Return:
 
-   `curl -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/install.sh | bash`
+   `curl -fsSL https://get.creatorize.io/install.sh | bash`
 
    It asks for their Mac login password once (nothing shows while they type; that's normal), installs Homebrew and
    then everything else. They tell you when it says "All set" or "Install stopped" (ask for the last lines it showed).
@@ -409,7 +418,7 @@ All of these happened on members' computers or are handled by the installer for 
 | What you see | What it means | What to do |
 |---|---|---|
 | `winget is missing. It comes with "App Installer" from the Microsoft Store.`, then `Install stopped` | winget isn't registered for this user yet (common on a new PC), or App Installer is missing | You, with the member's yes: command A. Still missing: the member installs or updates **App Installer** in the Store window the script opened. Then run the installer again. |
-| `winget could not install ffmpeg (code -1978335138: something on this PC checks your internet traffic...)` (also git, Python, Node.js), then `Downloading it directly instead` | An antivirus with HTTPS or web scanning, a VPN or a proxy re-signs web traffic, and winget refuses it. The script falls back to the official downloads | Nothing, when the next line is `[ok]`. If the direct download fails too (`Install stopped: could not install ...`): ask the member to disconnect a VPN for the install, or to add github.com, gyan.dev, nodejs.org and python.org to their antivirus's web-protection exceptions. Never ask them to turn the antivirus off. Then run the installer again. |
+| `winget could not install ffmpeg (code -1978335138: something on this PC checks your internet traffic...)` (also git, Python, Node.js), then `Downloading it directly instead` | An antivirus with HTTPS or web scanning, a VPN or a proxy re-signs web traffic, and winget refuses it. The script falls back to the official downloads | Nothing, when the next line is `[ok]`. If the direct download fails too (`Install stopped: could not install ...`): ask the member to disconnect a VPN for the install, or to add get.creatorize.io, github.com, gyan.dev, nodejs.org and python.org to their antivirus's web-protection exceptions. Never ask them to turn the antivirus off. Then run the installer again. |
 | `Smart App Control is On. It blocks the Python packages...`; later `WinError 4551` or `blocked by application control policy` (Python, transcription) | Windows 11 Smart App Control only lets signed programs run. The Python packages behind Creatorize's transcription and audio steps are not signed | The member's decision, never yours. Explain before the install: while it is On, transcription and the audio steps don't work. Turning it off: Windows Security > App & browser control > Smart App Control settings > Off. Windows can only turn it back on by resetting or reinstalling Windows; Microsoft Defender keeps protecting the PC either way. If it is already Off and the error stays, an organisation's App Control policy blocks it: they ask whoever manages the PC. |
 | `WinError 1114` ... `c10.dll` (importing the Python packages, transcription), or `[!] PyTorch (transcription) cannot start: Windows is missing the Microsoft Visual C++ Redistributable` / `Transcription will not work until ...` | PyTorch can't start: the Microsoft Visual C++ Redistributable (x64) is missing, usually because the permission box was declined. The installer asks once more by itself | With the member's yes (Windows asks for admin rights): command B, then run the installer again (it checks that PyTorch starts). |
 | `... is Python 3.13` (3.14, `a conda Python`, `32-bit Python`, `does not run`): `not used (it stays as it is)`, then `Installing Python 3.12 ...` and `Creatorize Suite is set to use this Python (...)` | PyTorch (transcription) doesn't run on that Python. The installer leaves it alone, installs Python 3.12 next to it and points Creatorize at it (Settings > System > Tool paths > Python; only that setting changes) | Nothing. If it says `could not set Creatorize Suite to use ...`: the member pastes the path it shows into Settings > System > Tool paths > Python. |
@@ -417,10 +426,10 @@ All of these happened on members' computers or are handled by the installer for 
 | `[!] pip could not install: ...` (in the list at the end) | A download failed (internet, a proxy, antivirus web scanning), the disk is full, or Smart App Control | Check free space and the connection, fix the cause, run again. The app itself is installed either way. |
 | `[!] Claude Code did not install: claude.ai could not be reached` / `claude.ai sent a web page instead of its installer` | No internet to claude.ai, a filter, or a network that wants a login first (hotel or office Wi-Fi) | The member opens https://claude.ai in their browser (and logs in to the Wi-Fi if it asks), then you run the installer again. Everything else is already installed. |
 | `WARNING: Cache entry deserialization failed` (pip) | A harmless pip warning | Nothing. |
-| `could not reach the Creatorize Suite releases` / `could not reach GitHub` | No internet, or a firewall, proxy or VPN blocks github.com | Command C. The member allows it or uses another network. |
+| `could not reach the Creatorize Suite releases` / `could not reach Creatorize's download server` / `could not reach GitHub` | No internet, or a firewall, proxy or VPN blocks get.creatorize.io (and github.com, its fallback) | Command C. The member allows it or uses another network. |
 | `Creatorize Suite ... is open, so the installer did not ...` (from the launcher's Repair: `Install stopped: Creatorize Suite is open, so the launcher could not ...`) | The app was running and something of it had to be replaced | Ask the member to close it (Mac: Cmd+Q), run the installer again. |
 | `N file(s) of Creatorize Suite X are missing or changed (...): installing X again` | An antivirus took or changed some of its files, or an update stopped half way | Nothing: the same version goes back in. `... missing again right after`: an antivirus removes them as they come; the member allows Creatorize (below), then run again. |
-| `the download of Creatorize Suite X was damaged on the way (it did not match the release)` | Something changed the download (an antivirus's web scanning, a proxy, a cut connection). It was not run | Run again. Again: the member allows github.com in the antivirus's web protection or pauses a VPN / proxy for the install. |
+| `the download of Creatorize Suite X was damaged on the way (it did not match the release)` | Something changed the download (an antivirus's web scanning, a proxy, a cut connection). It was not run | Run again. Again: the member allows get.creatorize.io in the antivirus's web protection or pauses a VPN / proxy for the install. |
 | `Updates are paused (you went back to X in the Creatorize Launcher)` | The member used Go back: the installer keeps that version | Nothing. Newer versions come back when they press **Resume updates** in the launcher. |
 | `Creatorize Suite X is installed (a test version, newer than Y)` | A beta is installed: the installer never replaces it with an older release | Nothing. |
 | `the Creatorize Suite installer did not finish (code N)` | The setup was blocked, usually by an antivirus, or the app was still running | Check the antivirus's quarantine ("Allowing Creatorize in an antivirus" below), make sure Creatorize is closed, run again. |
@@ -455,14 +464,15 @@ Commands for the table (Windows: PowerShell; Mac: Terminal):
   then check with `Get-Command winget`.
 - **B** (Windows) the Visual C++ Redistributable: `winget install --id Microsoft.VCRedist.2015+.x64 -e --source winget`
   (or the member downloads https://aka.ms/vs/17/release/vc_redist.x64.exe and runs it).
-- **C** can this computer reach GitHub: Windows `curl.exe -sI https://github.com`, Mac `curl -sI https://github.com`.
+- **C** can this computer reach Creatorize's download server: Windows `curl.exe -sI https://get.creatorize.io/update.json`,
+  Mac `curl -sI https://get.creatorize.io/update.json` (and GitHub, its fallback: the same with `https://github.com`).
 - **D** (Windows) remove the "downloaded from the internet" mark from Creatorize's own files only:
   ```powershell
   Get-ChildItem -LiteralPath "$env:LOCALAPPDATA\Programs\creatorize-suite", "$env:LOCALAPPDATA\Programs\creatorize-launcher" -Recurse -File -ErrorAction SilentlyContinue | Unblock-File
   ```
 - **E** (Windows) the official one-line command, run through PowerShell:
   ```powershell
-  powershell.exe -NoProfile -Command "irm https://raw.githubusercontent.com/therussellchris/creatorize/main/install.ps1 | iex"
+  powershell.exe -NoProfile -Command "irm https://get.creatorize.io/install.ps1 | iex"
   ```
 - **F** (Windows) is your shell inside an app package:
   ```powershell
@@ -507,14 +517,15 @@ The folders to allow. Windows: `%LOCALAPPDATA%\Programs\creatorize-suite`, `%LOC
 | The launcher's log | `%APPDATA%\Creatorize Launcher\launcher.log` | `~/Library/Application Support/Creatorize Launcher/launcher.log` |
 | The member's projects (never touch) | `Documents\Creatorize Suite` | `~/Documents/Creatorize Suite` |
 | The app's own Python environment | (none: the installed Python) | `~/Library/Application Support/Creatorize Suite/python` |
-| Releases | https://github.com/therussellchris/creatorize-suite-releases | https://github.com/therussellchris/creatorize-suite-mac-releases |
+| Releases (the list) | https://get.creatorize.io/creatorize-suite-releases/releases.json | https://get.creatorize.io/creatorize-suite-mac-releases/releases.json |
+| The newest installer | https://get.creatorize.io/download/windows | https://get.creatorize.io/download/mac-arm64 (Apple chip), https://get.creatorize.io/download/mac-x64 (Intel) |
 | The app's own ffmpeg + Python 3.12 (the app downloads and checks them itself the first time it runs) | the `runtime` folder in the app's data folder (above) | the `runtime` folder in the app's data folder (above) |
 | The project list (database; never edit it by hand) | `database\suite.db` in the app's data folder (older versions: in the projects folder) | `database/suite.db` in the app's data folder (older versions: in the projects folder) |
 
 The rescue commands (the member can paste them when the window stays dark; they close Creatorize, update it and start
 it in a safer graphics mode):
-- Windows (PowerShell): `irm https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.ps1 | iex`
-- Mac (Terminal): `curl -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/rescue.sh | bash`
+- Windows (PowerShell): `irm https://get.creatorize.io/rescue.ps1 | iex`
+- Mac (Terminal): `curl -fsSL https://get.creatorize.io/rescue.sh | bash`
 
 ## 11. Finish
 
@@ -590,8 +601,8 @@ projects or settings that the update doesn't need, no other programs, no advice 
 The rules of section 1 hold here too. Projects, settings and sign-ins stay as they are: nothing below deletes them.
 
 1. **Find the version.**
-   - Windows: `curl.exe -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/update.json`
-   - Mac: `curl -fsSL https://raw.githubusercontent.com/therussellchris/creatorize/main/update.json`
+   - Windows: `curl.exe -fsSL https://get.creatorize.io/update.json`
+   - Mac: `curl -fsSL https://get.creatorize.io/update.json`
 
    It holds `windows` and `mac`, the version for each system. Call the one for this computer `<new>`. If you can't read
    it, leave `CZ_INSTALL_VERSION` out below: the installer then takes the newest public version. Say so to the member.
